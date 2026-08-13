@@ -1,3 +1,11 @@
+// app/api/gemini/route.ts
+
+export const runtime = 'edge'; // 👈 AGREGAR ESTA LÍNEA AQUÍ AL INICIO
+
+import { NextResponse } from 'next/server';
+
+export async function POST(req: Request) {
+
 import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 
