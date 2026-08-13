@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Lead, LeadOrigin } from '@/types/crm';
-import { X } from 'lucide-react';
+import { X, Briefcase } from 'lucide-react';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyAYhe9xRCAh1cEjlWq7fioCmOJfcJqwGrOkZFSTGczZlVBr0vr4eqrUeMGQ2yjq899/exec';
 
@@ -10,15 +10,16 @@ interface NewLeadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddLead: (lead: Lead) => void;
+  prefillData?: { name?: string; phone?: string };
 }
 
 let leadCounter = 0;
 function createLeadId(): string {
   leadCounter += 1;
-  return `manual_${Date.now()}_${leadCounter}`;
+  return `deal_${Date.now()}_${leadCounter}`;
 }
 
-export const NewLeadModal: React.FC<NewLeadModalProps> = ({ isOpen, onClose, onAddLead }) => {
+export const NewLeadModal: React.FC<NewLeadModalProps> = ({ isOpen, onClose, onAddLead, prefillData }) => {
   const [name, setName] = useState('');
   const [company, setCompany] = useState('');
   const [email, setEmail] = useState('');
@@ -29,12 +30,20 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({ isOpen, onClose, onA
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (prefillData) {
+      setName(prefillData.name || '');
+      setCompany(prefillData.name || '');
+      setPhone(prefillData.phone || '');
+    }
+  }, [prefillData, isOpen]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!company.trim() && !name.trim()) {
-      alert('Por favor ingresa la persona de contacto o el nombre del negocio.');
+      alert('Por favor ingresa el nombre de la persona o negocio.');
       return;
     }
 
@@ -54,13 +63,11 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({ isOpen, onClose, onA
       serviceInterest: serviceInterest.trim(),
       notes: notes.trim(),
       createdAt: new Date().toISOString().split('T')[0],
-      lastActivity: 'Ingresado desde CRM',
+      lastActivity: prefillData ? 'Nuevo trato de cliente existente' : 'Ingresado desde CRM',
     };
 
-    // 1. Update React Local State (Immediate UI feedback)
     onAddLead(newLead);
 
-    // 2. Persist to Google Sheets (CRM Ventas Sheet)
     try {
       await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
@@ -79,11 +86,10 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({ isOpen, onClose, onA
         })
       });
     } catch (err) {
-      console.error('Error al guardar nuevo lead en Google Sheets:', err);
+      console.error('Error al guardar nuevo trato en Google Sheets:', err);
     } finally {
       setIsSubmitting(false);
       onClose();
-      // Reset form
       setName('');
       setCompany('');
       setEmail('');
@@ -98,9 +104,14 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({ isOpen, onClose, onA
         
         {/* Header */}
         <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-sm">Agregar Nuevo Lead Comercial</h3>
-            <p className="text-[11px] text-slate-400">PáginasPro.cl CRM</p>
+          <div className="flex items-center gap-2">
+            <Briefcase className="w-5 h-5 text-emerald-400" />
+            <div>
+              <h3 className="font-bold text-sm">
+                {prefillData ? `Agregar Nuevo Trato para ${prefillData.name}` : 'Agregar Nuevo Lead / Trato'}
+              </h3>
+              <p className="text-[11px] text-slate-400">PáginasPro.cl CRM</p>
+            </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white p-1 font-bold">
             <X className="w-5 h-5" />
@@ -159,14 +170,14 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({ isOpen, onClose, onA
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="font-bold text-slate-700 block mb-1">Origen del Lead</label>
+              <label className="font-bold text-slate-700 block mb-1">Origen del Trato</label>
               <select
                 value={origin}
                 onChange={(e) => setOrigin(e.target.value as LeadOrigin)}
                 className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-none focus:border-emerald-500"
               >
                 <option value="web_form">Formulario Web paginaspro.cl</option>
-                <option value="whatsapp">WhatsApp Directo</option>
+                <option value="whatsapp">WhatsApp Directo / Re-contacto</option>
                 <option value="meta_ads">Meta Ads (Facebook/Instagram)</option>
               </select>
             </div>
@@ -182,22 +193,22 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({ isOpen, onClose, onA
           </div>
 
           <div>
-            <label className="font-bold text-slate-700 block mb-1">Servicio de Interés</label>
+            <label className="font-bold text-slate-700 block mb-1">Servicio de Interés / Nuevo Proyecto</label>
             <input
               type="text"
               value={serviceInterest}
               onChange={(e) => setServiceInterest(e.target.value)}
-              placeholder="ej: Plan Despegue (PYMEs y Tiendas)"
+              placeholder="ej: Servicio Mensual Meta Ads o Módulo App"
               className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-emerald-500"
             />
           </div>
 
           <div>
-            <label className="font-bold text-slate-700 block mb-1">Notas Iniciales</label>
+            <label className="font-bold text-slate-700 block mb-1">Notas del Trato</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Escribe detalles de la solicitud o reunión..."
+              placeholder="Escribe detalles del nuevo servicio cotizado..."
               rows={3}
               className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:border-emerald-500"
             />
@@ -216,7 +227,7 @@ export const NewLeadModal: React.FC<NewLeadModalProps> = ({ isOpen, onClose, onA
               disabled={isSubmitting}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-5 py-2 rounded-lg shadow-sm disabled:opacity-50"
             >
-              {isSubmitting ? 'Guardando...' : 'Guardar Lead en Google Sheets'}
+              {isSubmitting ? 'Guardando...' : 'Crear Trato en Google Sheets'}
             </button>
           </div>
 
