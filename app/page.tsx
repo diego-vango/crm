@@ -21,6 +21,9 @@ import {
   INITIAL_SURVEYS 
 } from '@/lib/mockData';
 import { calculateWarrantyDates } from '@/lib/formatters';
+import { Lock, ShieldCheck, KeyRound, LogOut, ArrowRight } from 'lucide-react';
+
+const CRM_ACCESS_PIN = '10224994';
 
 let pageItemCounter = 0;
 function createPageItemId(): string {
@@ -35,9 +38,47 @@ function createPageInfId(): string {
 }
 
 export default function CrmDashboardPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [pinInput, setPinInput] = useState<string>('');
+  const [pinError, setPinError] = useState<boolean>(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState<boolean>(true);
+
   const [activeTab, setActiveTab] = useState<'pipeline' | 'presupuestos' | 'informes' | 'csat'>('pipeline');
   const [searchTerm, setSearchTerm] = useState('');
   const [isNewLeadModalOpen, setIsNewLeadModalOpen] = useState(false);
+
+  // Check saved authentication on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedAuth = localStorage.getItem('paginaspro_crm_auth');
+      if (savedAuth === 'true') {
+        setIsAuthenticated(true);
+      }
+      setIsCheckingAuth(false);
+    }
+  }, []);
+
+  const handlePinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pinInput.trim() === CRM_ACCESS_PIN) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('paginaspro_crm_auth', 'true');
+      }
+      setIsAuthenticated(true);
+      setPinError(false);
+    } else {
+      setPinError(true);
+      setPinInput('');
+    }
+  };
+
+  const handleLogout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('paginaspro_crm_auth');
+    }
+    setIsAuthenticated(false);
+    setPinInput('');
+  };
 
   // State with LocalStorage Persistence
   const [leads, setLeads] = useState<Lead[]>(() => {
@@ -251,6 +292,83 @@ export default function CrmDashboardPage() {
     ? surveys.reduce((s, item) => s + item.overallRating, 0) / surveys.length
     : 5;
 
+  // Render loading state while reading localStorage
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+      </div>
+    );
+  }
+
+  // LOGIN SCREEN (If not authenticated)
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 font-sans selection:bg-emerald-500 selection:text-slate-950">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6 relative overflow-hidden">
+          
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center justify-center w-14 h-14 bg-slate-800 border border-slate-700/80 rounded-2xl mb-2 shadow-inner">
+              <Lock className="w-6 h-6 text-emerald-400" />
+            </div>
+            <h1 className="text-2xl font-black text-white tracking-tight">
+              Páginas<span className="text-emerald-400">Pro</span>.cl
+            </h1>
+            <p className="text-xs font-medium text-slate-400">
+              Acceso Privado al Panel CRM de Operaciones
+            </p>
+          </div>
+
+          <form onSubmit={handlePinSubmit} className="space-y-4">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                Código de Seguridad PIN
+              </label>
+              <div className="relative">
+                <input
+                  type="password"
+                  value={pinInput}
+                  onChange={(e) => {
+                    setPinInput(e.target.value);
+                    setPinError(false);
+                  }}
+                  placeholder="••••••••"
+                  autoFocus
+                  className={`w-full bg-slate-950 border ${
+                    pinError ? 'border-rose-500 ring-1 ring-rose-500' : 'border-slate-800 focus:border-emerald-500'
+                  } text-white font-mono text-center tracking-widest text-lg rounded-xl py-3 px-4 focus:outline-none transition placeholder:text-slate-700`}
+                />
+                <KeyRound className="w-5 h-5 text-slate-600 absolute right-3.5 top-3.5 pointer-events-none" />
+              </div>
+              {pinError && (
+                <p className="text-rose-400 text-xs font-semibold mt-2 text-center animate-shake">
+                  ⚠️ PIN de acceso incorrecto
+                </p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-[0.98]"
+            >
+              <span>Ingresar al CRM</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </form>
+
+          <div className="pt-4 border-t border-slate-800/80 text-center flex items-center justify-center gap-2 text-[11px] text-slate-500 font-medium">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Plataforma Encriptada Vango SpA</span>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
+  // AUTHENTICATED CRM DASHBOARD
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased selection:bg-emerald-500 selection:text-slate-950 flex flex-col justify-between">
       
@@ -321,8 +439,16 @@ export default function CrmDashboardPage() {
             <span className="text-slate-500">•</span>
             <span>{COMPANY_DATA.razonSocial} ({COMPANY_DATA.rut})</span>
           </div>
-          <div className="text-slate-400 font-mono text-[11px]">
-            Dashboard CRM Operaciones Unificado • <span className="text-emerald-400">crm.paginaspro.cl</span>
+          <div className="text-slate-400 font-mono text-[11px] flex items-center gap-3">
+            <span>crm.paginaspro.cl</span>
+            <button
+              onClick={handleLogout}
+              className="text-slate-400 hover:text-rose-400 font-semibold flex items-center gap-1 transition px-2 py-1 rounded bg-slate-800 hover:bg-slate-800/80"
+              title="Cerrar Sesión Privada"
+            >
+              <LogOut className="w-3 h-3" />
+              <span>Salir</span>
+            </button>
           </div>
           <div className="text-slate-500 text-[11px]">
             La Serena, Chile • Scotiabank Cta. Cte. N° 993884572
