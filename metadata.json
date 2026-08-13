@@ -1,0 +1,6 @@
+{
+  "name": "PáginasPro.cl CRM",
+  "description": "Dashboard CRM de Operaciones Unificado para PáginasPro.cl (Vango SpA) con Pipeline de Leads, Presupuestos PDF Print-Ready, Informes de Entrega y Portal CSAT/NPS.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
