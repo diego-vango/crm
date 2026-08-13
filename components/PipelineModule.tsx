@@ -18,7 +18,9 @@ import {
   Filter,
   RefreshCw,
   Save,
-  CheckCircle2
+  CheckCircle2,
+  GripVertical,
+  Briefcase
 } from 'lucide-react';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyAYhe9xRCAh1cEjlWq7fioCmOJfcJqwGrOkZFSTGczZlVBr0vr4eqrUeMGQ2yjq899/exec';
@@ -28,7 +30,7 @@ interface PipelineModuleProps {
   setLeads: React.Dispatch<React.SetStateAction<Lead[]>>;
   searchTerm: string;
   onConvertLeadToQuote: (lead: Lead) => void;
-  onOpenNewLeadModal: () => void;
+  onOpenNewLeadModal: (prefillData?: { name?: string; phone?: string }) => void;
 }
 
 const STAGES: { key: LeadStage; label: string; color: string; border: string; bg: string }[] = [
@@ -53,28 +55,27 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
   const [isSavingDetails, setIsSavingDetails] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [lastSyncTime, setLastSyncTime] = useState<string>('');
+  const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
 
-  // Editable Form State in Sidebar Modal
+  // Editable Form State in Sidebar
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editService, setEditService] = useState('');
   const [editValue, setEditValue] = useState<number>(0);
   const [editNotes, setEditNotes] = useState('');
 
-  // Clean Meta Ads raw phone
   const cleanPhone = (phoneRaw: string) => {
     if (!phoneRaw) return '';
     return String(phoneRaw).replace(/^p:/i, '').trim();
   };
 
-  // Convert CLP string to number
   const parseAmountNumber = (amountRaw: any): number => {
     if (!amountRaw) return 0;
     const cleaned = String(amountRaw).replace(/[^0-9]/g, '');
     return parseInt(cleaned, 10) || 0;
   };
 
-  // Map Sheet Status to LeadStage
   const mapSheetStatusToStage = (rawStatus: string): LeadStage => {
     if (!rawStatus) return 'nuevo';
     const s = String(rawStatus).toLowerCase().trim();
@@ -96,7 +97,6 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
     }
   };
 
-  // Populate Sidebar Form when lead selected
   useEffect(() => {
     if (selectedLead) {
       setEditName(selectedLead.name);
@@ -152,7 +152,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
     fetchLeadsFromSheets();
   }, [fetchLeadsFromSheets]);
 
-  // Move Stage
+  // Move Lead Stage (Used by Select and Drag-and-Drop)
   const moveLeadStage = async (leadId: string, newStage: LeadStage) => {
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage, lastActivity: `Estado cambiado a ${newStage.toUpperCase()} hoy` } : l));
 
@@ -171,7 +171,35 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
     }
   };
 
-  // Save Full Lead Details
+  // Drag and Drop Event Handlers
+  const handleDragStart = (e: React.DragEvent, leadId: string) => {
+    e.dataTransfer.setData('text/plain', leadId);
+    setDraggingLeadId(leadId);
+  };
+
+  const handleDragOver = (e: React.DragEvent, stageKey: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverStage !== stageKey) {
+      setDragOverStage(stageKey);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverStage(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, newStage: LeadStage) => {
+    e.preventDefault();
+    const leadId = e.dataTransfer.getData('text/plain') || draggingLeadId;
+    if (leadId) {
+      moveLeadStage(leadId, newStage);
+    }
+    setDraggingLeadId(null);
+    setDragOverStage(null);
+  };
+
+  // Save Lead Details
   const handleSaveLeadDetails = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead) return;
@@ -189,7 +217,6 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
       notes: editNotes.trim()
     };
 
-    // Update Local State
     setLeads(prev => prev.map(l => l.id === selectedLead.id ? updatedLead : l));
     setSelectedLead(updatedLead);
 
@@ -260,7 +287,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
   return (
     <div className="space-y-6">
       
-      {/* Top Header & KPI Summary Bar */}
+      {/* Top KPI Summary Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
@@ -368,7 +395,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
           </div>
 
           <button
-            onClick={onOpenNewLeadModal}
+            onClick={() => onOpenNewLeadModal()}
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow-sm"
           >
             <Plus className="w-4 h-4" />
@@ -378,18 +405,25 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
 
       </div>
 
-      {/* KANBAN BOARD VIEW */}
+      {/* KANBAN BOARD VIEW WITH DRAG & DROP */}
       {viewMode === 'kanban' ? (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto pb-4">
           {STAGES.map((stage) => {
             const stageLeads = filteredLeads.filter(l => l.stage === stage.key);
             const stageTotal = stageLeads.reduce((sum, l) => sum + (l.value || 0), 0);
+            const isTargetDropStage = dragOverStage === stage.key;
 
             return (
               <div
                 key={stage.key}
-                className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 flex flex-col min-w-[260px] min-h-[500px]"
+                onDragOver={(e) => handleDragOver(e, stage.key)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, stage.key)}
+                className={`bg-slate-50 border rounded-xl p-3 flex flex-col min-w-[260px] min-h-[500px] transition-all ${
+                  isTargetDropStage ? 'border-emerald-500 ring-2 ring-emerald-400/40 bg-emerald-50/20' : 'border-slate-200/80'
+                }`}
               >
+                {/* Column Header */}
                 <div className={`p-2.5 rounded-lg border ${stage.border} ${stage.bg} mb-3 flex items-center justify-between`}>
                   <div>
                     <h4 className={`text-xs font-bold ${stage.color}`}>{stage.label}</h4>
@@ -402,20 +436,28 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
                   </span>
                 </div>
 
+                {/* Lead Cards List */}
                 <div className="space-y-3 flex-1 overflow-y-auto pr-1">
                   {stageLeads.length === 0 ? (
                     <div className="h-32 border-2 border-dashed border-slate-200 rounded-lg flex items-center justify-center text-[11px] text-slate-400 text-center px-4">
-                      Sin leads en esta etapa
+                      {isTargetDropStage ? '👉 Soltar aquí' : 'Sin leads en esta etapa'}
                     </div>
                   ) : (
                     stageLeads.map((lead) => (
                       <div
                         key={lead.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, lead.id)}
                         onClick={() => setSelectedLead(lead)}
-                        className={`bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition cursor-pointer group relative ${
+                        className={`bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition cursor-grab active:cursor-grabbing group relative ${
                           selectedLead?.id === lead.id ? 'ring-2 ring-emerald-500 border-emerald-500' : ''
-                        }`}
+                        } ${draggingLeadId === lead.id ? 'opacity-40 border-dashed border-emerald-500' : ''}`}
                       >
+                        {/* Drag Grip Handle Visual Indicator */}
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-slate-300 transition">
+                          <GripVertical className="w-4 h-4" />
+                        </div>
+
                         <div className="flex items-center justify-between mb-2">
                           {getOriginBadge(lead.origin)}
                           <span className="text-xs font-black text-slate-900 font-mono">
@@ -551,7 +593,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
               
               <div className="flex items-center justify-between pb-4 border-b border-slate-200">
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-600">Editar Lead (CRM Ventas)</span>
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-600">Editar Lead / Trato</span>
                   <h3 className="text-xl font-black text-slate-900">{editName || 'Cliente'}</h3>
                 </div>
                 <button 
@@ -569,6 +611,26 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
                   <span>¡Cambios guardados correctamente en Google Sheets!</span>
                 </div>
               )}
+
+              {/* Botón de Agregar Nuevo Trato para este Cliente */}
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-slate-800 text-xs">¿Nuevo Servicio o Proyecto?</p>
+                  <p className="text-[10px] text-slate-500">Crea un segundo trato para {editName}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const clientData = { name: editName, phone: editPhone };
+                    setSelectedLead(null);
+                    onOpenNewLeadModal(clientData);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 transition shadow-xs"
+                >
+                  <Briefcase className="w-3.5 h-3.5" />
+                  <span>＋ Nuevo Trato</span>
+                </button>
+              </div>
 
               <div className="space-y-3.5 text-xs">
                 <div>
@@ -616,7 +678,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
                   <textarea
                     value={editNotes}
                     onChange={(e) => setEditNotes(e.target.value)}
-                    rows={5}
+                    rows={4}
                     placeholder="Agrega notas de llamadas, acuerdos de precio o fechas..."
                     className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none font-medium"
                   />
