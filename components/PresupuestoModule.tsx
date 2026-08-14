@@ -8,7 +8,6 @@ import {
   Plus, 
   Trash2, 
   Check, 
-  Share2, 
   FileText, 
   RefreshCw,
   Save,
@@ -17,27 +16,96 @@ import {
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyAYhe9xRCAh1cEjlWq7fioCmOJfcJqwGrOkZFSTGczZlVBr0vr4eqrUeMGQ2yjq899/exec';
 
-const DEFAULT_CONDITIONS = `• Forma de Pago: 50% de anticipo + arancel dominio NIC Chile (ref. $9.990) para iniciar los trabajos. 50% restante contra entrega de la plataforma actualizada y probada.
-• Plazo de Ejecución: 3 a 5 días hábiles desde la recepción de contenidos y material a ingresar en el sitio web (textos, logos, fotos, links de video).
-• Garantía de Estabilidad (90 Días): PáginasPro.cl incluye una garantía técnica de 3 meses que cubre la estabilidad de la carga web y correcta visualización de los elementos entregados.`;
+const DEFAULT_CONDITIONS = `CONDICIONES COMERCIALES Y GARANTÍA
+- Forma de Pago: 50% de anticipo para iniciar los trabajos y respaldos. 50% contra entrega de la plataforma actualizada y probada.
+- Plazo de Ejecución: 2 a 4 días hábiles desde la recepción del material completo (textos, logos, fotos) y los accesos solicitados.
+- Garantía de Estabilidad (90 Días): PaginasPro.cl incluye una garantía técnica de 3 meses que cubre la estabilidad de la carga web y correcta visualización de los elementos entregados.`;
 
 const PRESET_SERVICES = [
   {
-    title: 'Desarrollo Sitio Web Pro + Dominio .cl',
-    description: 'Diseño UX/UI responsivo corporativo en Next.js/Tailwind, optimización SEO de velocidad, SSL y configuración de hosting.',
-    netAmount: 0,
+    title: 'Desarrollo Sitio Web Pro + Agenda Digital (Cal.com)',
+    description: 'Diseño UX/UI responsivo, optimización SEO de velocidad, SSL y agenda interactiva sincronizada con Google Calendar.',
+    netAmount: 70000,
   },
   {
-    title: 'Tienda Online Ecommerce + Pasarela Webpay Plus',
-    description: 'Catálogo de productos con carro de compras, integración de pagos Webpay Plus / Transbank y panel autoadministrable.',
-    netAmount: 0,
+    title: 'Landing Page Corporativa + Correos Institucionales',
+    description: 'Página web One Page Mobile-First optimizada para celulares y computadores, alojamiento Cloudflare ($0/mes) y correos.',
+    netAmount: 60000,
   },
   {
-    title: 'Sistema Reserva de Horas Médicas & Agenda',
-    description: 'Módulo interactivo de toma de agendamientos con confirmación por correo, calendario por profesional y ficha técnica.',
-    netAmount: 0,
+    title: 'Auditoría, Resguardo y Actualización WooCommerce',
+    description: 'Backup integral, corrección de conflictos PHP, actualización de WordPress/plugins y limpieza de catálogo.',
+    netAmount: 50000,
+  },
+  {
+    title: 'Rediseño Web Next.js + Rescate de Contenidos',
+    description: 'Migración desde WordPress a plataforma Next.js ultra rápida, $0/mes de servidor y asesoría de recuperación de dominio.',
+    netAmount: 240000,
+  },
+  {
+    title: 'Portal Inmobiliario Básico (Hasta 10 Propiedades)',
+    description: 'Catálogo de inmuebles con fichas técnicas, fotos HD, video recorrido y botón flotante de WhatsApp personalizado.',
+    netAmount: 100000,
+  },
+  {
+    title: 'Portal Inmobiliario Avanzado (Hasta 50 Propiedades)',
+    description: 'Arquitectura para catálogo denso, filtros interactivos, CDN multimedia para 500+ fotos y botones directos.',
+    netAmount: 280000,
+  },
+  {
+    title: 'Portal Web Catálogo Automotriz / Alta Gama',
+    description: 'Vitrina digital profesional con ficha técnica por vehículo, galería HD, video recorrido y cotización a WhatsApp.',
+    netAmount: 100000,
+  },
+  {
+    title: 'Módulo de Gestión Vía Aplicación Móvil (iOS, Android, Web)',
+    description: 'Panel de control autogestionable para subir, editar o eliminar productos/propiedades desde el celular en vivo.',
+    netAmount: 50000,
+  },
+  {
+    title: 'Web Centro Médico + Integración Consultorio.me + Tienda',
+    description: 'Catálogo de especialidades médicas, agenda Consultorio.me por profesional y módulo e-commerce con MercadoPago.',
+    netAmount: 120000,
+  },
+  {
+    title: 'Gestión Mensual, Estrategia y Optimización de Meta Ads',
+    description: 'Estrategia de audiencias, administración de campañas en Meta Ads Manager, optimización e informe de prospectos.',
+    netAmount: 40000,
+  },
+  {
+    title: 'Producción Audiovisual & Creación de Contenido para Redes',
+    description: '1 jornada mensual de rodaje/fotos en terreno, edición de Reels/TikToks dinámicos 4K y publicación en redes.',
+    netAmount: 250000,
+  },
+  {
+    title: 'Estrategia Integral Digital 360° (Web + Redes + Ads + Comisión)',
+    description: 'Producción audiovisual mensual + gestión de Meta Ads + catálogo web siempre al día + comisión por venta ($50.000).',
+    netAmount: 300000,
   },
 ];
+
+// Parser para limpiar montos en pesos chilenos ($71.400 -> 71400)
+const parseCLPAmount = (val: any): number => {
+  if (val === null || val === undefined || val === '') return 0;
+  if (typeof val === 'number') return Math.round(val);
+  const str = String(val).trim();
+  const cleaned = str.replace(/[^0-9]/g, '');
+  return parseInt(cleaned, 10) || 0;
+};
+
+// Parser de Fechas limpias
+const cleanIsoDate = (d: any): string => {
+  if (!d) return new Date().toISOString().split('T')[0];
+  return String(d).split('T')[0];
+};
+
+// Parser de Teléfono limpio
+const cleanPhoneText = (phoneRaw: any) => {
+  if (!phoneRaw || String(phoneRaw).includes('#ERROR!') || String(phoneRaw).includes('#REF!')) {
+    return '';
+  }
+  return String(phoneRaw).replace(/^p:/i, '').trim();
+};
 
 let itemIdCounter = 0;
 function createItemId(): string {
@@ -60,12 +128,11 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
   setActivePresupuesto,
   onSavePresupuesto,
 }) => {
-  // Configuración de Presupuesto Inicial (N° 1 si la lista está vacía)
   const [formData, setFormData] = useState<Presupuesto>(() => {
     if (activePresupuesto && activePresupuesto.correlativo) return activePresupuesto;
     return {
-      id: 'ppto-1',
-      correlativo: 1,
+      id: 'ppto-228',
+      correlativo: '228',
       clientName: '',
       clientCompany: '',
       clientEmail: 'diego@paginaspro.cl',
@@ -75,7 +142,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
       items: [
         {
           id: createItemId(),
-          title: 'Desarrollo Sitio Web Pro Personal',
+          title: 'Desarrollo Sitio Web Pro + Agenda Digital',
           description: 'Diseño UX/UI responsivo, optimización SEO de velocidad, SSL y agendamiento integrado.',
           netAmount: 70000,
         }
@@ -94,7 +161,6 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncingHistorial, setIsSyncingHistorial] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
     if (activePresupuesto) {
@@ -126,22 +192,23 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
               id: 'item-1',
               title: item.asunto || 'Desarrollo Sitio Web Pro',
               description: 'Servicio maquetado en Next.js/Tailwind CSS con $0/mes de servidor.',
-              netAmount: Number(item.montoNeto) || 0
+              netAmount: parseCLPAmount(item.montoNeto)
             }];
           }
 
-          const net = Number(item.montoNeto) || 0;
-          const iva = Number(item.iva) || Math.round(net * 0.19);
-          const total = Number(item.montoTotal) || (net + iva);
+          const net = parseCLPAmount(item.montoNeto);
+          const iva = parseCLPAmount(item.iva) || Math.round(net * 0.19);
+          const total = parseCLPAmount(item.montoTotal) || (net + iva);
+          const correlativeStr = String(item.correlativo || '1').trim();
 
           return {
-            id: `ppto-${item.correlativo}`,
-            correlativo: Number(item.correlativo) || 1,
+            id: `ppto-${correlativeStr}`,
+            correlativo: correlativeStr as any,
             clientName: item.atencion || item.cliente || '',
             clientCompany: item.cliente || '',
             clientEmail: 'diego@paginaspro.cl',
-            clientPhone: item.telefono || '',
-            date: item.fecha || new Date().toISOString().split('T')[0],
+            clientPhone: cleanPhoneText(item.telefono),
+            date: cleanIsoDate(item.fecha),
             validityDays: 15,
             items: parsedItems,
             appliesIva: iva > 0,
@@ -160,7 +227,6 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
           setActivePresupuesto(mappedPptos[0]);
         }
       } else {
-        // Si el Sheet está totalmente vacío, dejamos la lista vacía
         setPresupuestos([]);
       }
     } catch (err) {
@@ -209,15 +275,24 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
     setFormData({ ...formData, items: updatedItems });
   };
 
-  // Crear Nuevo Presupuesto con Correlativo Dinámico
+  // Crear Nuevo Presupuesto con Correlativo Dinámico (después del último)
   const handleCreateNewPresupuesto = () => {
-    const nextNum = presupuestos.length > 0 
-      ? Math.max(...presupuestos.map(p => p.correlativo || 0)) + 1 
-      : 1;
+    let nextNum = 228;
+    if (presupuestos.length > 0) {
+      let maxDigits = 227;
+      presupuestos.forEach(p => {
+        const match = String(p.correlativo || '').match(/^\d+/);
+        if (match) {
+          const val = parseInt(match[0], 10);
+          if (val > maxDigits) maxDigits = val;
+        }
+      });
+      nextNum = maxDigits + 1;
+    }
 
     const newPpto: Presupuesto = {
       id: `ppto-${nextNum}`,
-      correlativo: nextNum,
+      correlativo: String(nextNum) as any,
       clientName: '',
       clientCompany: '',
       clientEmail: 'diego@paginaspro.cl',
@@ -228,7 +303,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
         {
           id: createItemId(),
           title: 'Desarrollo Sitio Web Pro',
-          description: 'Diseño UX/UI responsivo, optimización SEO y agendamiento.',
+          description: 'Diseño UX/UI responsivo, optimización SEO de velocidad y agendamiento.',
           netAmount: 0,
         }
       ],
@@ -268,7 +343,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           action: 'save_presupuesto',
-          correlativo: formData.correlativo,
+          correlativo: String(formData.correlativo),
           fecha: formData.date,
           cliente: formData.clientCompany || formData.clientName || 'Cliente',
           atencion: formData.clientName,
@@ -295,13 +370,6 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
   const handlePrint = () => {
     handleSaveAndSync();
     window.print();
-  };
-
-  const handleCopyShareLink = () => {
-    const link = `https://crm.paginaspro.cl/presupuesto/PPTO-${formData.correlativo}`;
-    navigator.clipboard.writeText(link);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
   };
 
   return (
@@ -343,16 +411,16 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
               <span>No hay presupuestos guardados en el Sheet.</span>
             </div>
           ) : (
-            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
               {presupuestos.map((p) => (
                 <div
-                  key={p.id}
+                  key={p.id || String(p.correlativo)}
                   onClick={() => {
                     setActivePresupuesto(p);
                     setFormData(p);
                   }}
                   className={`p-2.5 rounded-lg border text-xs cursor-pointer transition flex items-center justify-between ${
-                    formData.correlativo === p.correlativo
+                    String(formData.correlativo) === String(p.correlativo)
                       ? 'border-emerald-500 bg-emerald-50/60 font-semibold'
                       : 'border-slate-200 hover:bg-slate-50'
                   }`}
@@ -379,13 +447,13 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
               <FileText className="w-4 h-4 text-emerald-600" />
               <span>Generador de Presupuesto</span>
             </h2>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span className="text-slate-400 font-semibold text-[11px]">N°</span>
               <input
-                type="number"
+                type="text"
                 value={formData.correlativo}
-                onChange={(e) => handleFieldChange('correlativo', Number(e.target.value))}
-                className="w-16 p-1 bg-emerald-50 border border-emerald-300 font-mono font-bold text-center text-emerald-800 rounded-md focus:outline-none"
+                onChange={(e) => handleFieldChange('correlativo', e.target.value)}
+                className="w-20 p-1 bg-emerald-50 border border-emerald-300 font-mono font-bold text-center text-emerald-800 rounded-md focus:outline-none"
               />
             </div>
           </div>
@@ -435,18 +503,18 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
             </div>
           </div>
 
-          {/* Plantillas Rápidas */}
+          {/* Plantillas Rápidas Completa */}
           <div>
-            <span className="text-[11px] font-bold text-slate-500 block mb-1">Insertar Plantilla Rápida:</span>
-            <div className="flex flex-wrap gap-1.5">
+            <span className="text-[11px] font-bold text-slate-500 block mb-1.5">Insertar Plantilla Rápida de Servicio:</span>
+            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1 bg-slate-50 rounded-lg border border-slate-200">
               {PRESET_SERVICES.map((preset, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => handleAddItem(preset)}
-                  className="text-[10px] bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200 text-slate-700 font-medium px-2 py-1 rounded transition"
+                  className="text-[10px] bg-white hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 border border-slate-200 text-slate-700 font-medium px-2 py-1 rounded transition text-left"
                 >
-                  + {preset.title.split('+')[0]}
+                  + {preset.title}
                 </button>
               ))}
             </div>
@@ -548,24 +616,14 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
               <span>Imprimir / Exportar PDF Oficial</span>
             </button>
 
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={handleSaveAndSync}
-                disabled={isSaving}
-                className="bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2 rounded-lg text-xs flex items-center justify-center gap-1.5 transition disabled:opacity-50"
-              >
-                <Save className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{isSaving ? 'Guardando...' : 'Guardar Cambios'}</span>
-              </button>
-
-              <button
-                onClick={handleCopyShareLink}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 rounded-lg text-xs flex items-center justify-center gap-1.5 transition border border-slate-300"
-              >
-                <Share2 className="w-3.5 h-3.5 text-slate-600" />
-                <span>{copiedLink ? '¡Copiado!' : 'Copiar Link'}</span>
-              </button>
-            </div>
+            <button
+              onClick={handleSaveAndSync}
+              disabled={isSaving}
+              className="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2.5 rounded-lg text-xs flex items-center justify-center gap-1.5 transition disabled:opacity-50"
+            >
+              <Save className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{isSaving ? 'Guardando...' : 'Guardar Cambios en Google Sheets'}</span>
+            </button>
           </div>
 
         </div>
@@ -713,7 +771,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
 
           </div>
 
-          {/* CONDICIONES COMERCIALES Y GARANTÍA (DINÁMICAS Y EDITABLES) */}
+          {/* CONDICIONES COMERCIALES Y GARANTÍA (EDITABLE Y CON FORMATO INSTITUCIONAL) */}
           <div className="mt-8 pt-4 border-t border-slate-200 text-[11px] text-slate-600 space-y-2">
             <span className="font-bold uppercase tracking-wider text-slate-900 block text-[10px]">
               CONDICIONES COMERCIALES Y GARANTÍA
