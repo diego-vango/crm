@@ -142,12 +142,13 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
     if (activePresupuesto) {
       setFormData({
         ...activePresupuesto,
-        notes: activePresupuesto.notes || DEFAULT_CONDITIONS
+        notes: activePresupuesto.notes || DEFAULT_CONDITIONS,
+        nicChileFee: activePresupuesto.nicChileFee !== undefined ? activePresupuesto.nicChileFee : 0
       });
     }
   }, [activePresupuesto]);
 
-  // Cargar Historial en Tiempo Real desde Google Sheets (Sin Cache)
+  // Cargar Historial desde Google Sheets
   const fetchPresupuestosFromSheets = useCallback(async () => {
     setIsSyncingHistorial(true);
     try {
@@ -158,7 +159,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
       try {
         data = JSON.parse(text);
       } catch (parseErr) {
-        console.error('Error al parsear JSON de Google Sheets:', text);
+        console.error('Respuesta de Sheets no es JSON:', text);
         return;
       }
 
@@ -183,11 +184,11 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
           const net = parseCLPAmount(item.montoNeto);
           const iva = parseCLPAmount(item.iva) || Math.round(net * 0.19);
           const total = parseCLPAmount(item.montoTotal) || (net + iva);
-          const numCorrelativo = parseCorrelativoNumber(item.correlativo);
+          const correlativoVal = item.correlativo || '228';
 
           return {
-            id: `ppto-${numCorrelativo}`,
-            correlativo: numCorrelativo,
+            id: `ppto-${correlativoVal}`,
+            correlativo: correlativoVal,
             clientName: item.atencion || item.cliente || '',
             clientCompany: item.cliente || '',
             clientEmail: 'diego@paginaspro.cl',
@@ -201,25 +202,19 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
             ivaAmount: iva,
             totalAmount: total,
             anticipo50: Math.round(total / 2),
-            nicChileFee: 9990,
+            nicChileFee: 0,
             status: 'enviado'
           };
         });
 
         setPresupuestos(mappedPptos);
-        if (mappedPptos.length > 0) {
-          setActivePresupuesto(mappedPptos[0]);
-          setFormData(mappedPptos[0]);
-        }
-      } else {
-        setPresupuestos([]);
       }
     } catch (err) {
       console.error('Error al cargar presupuestos desde Sheets:', err);
     } finally {
       setIsSyncingHistorial(false);
     }
-  }, [setPresupuestos, setActivePresupuesto]);
+  }, [setPresupuestos]);
 
   useEffect(() => {
     fetchPresupuestosFromSheets();
@@ -229,7 +224,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
   const financials = calculateBudgetFinancials(
     formData.items || [],
     formData.appliesIva,
-    formData.nicChileFee || 9990
+    formData.nicChileFee || 0
   );
 
   const handleFieldChange = (field: keyof Presupuesto, value: any) => {
@@ -260,14 +255,17 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
     setFormData({ ...formData, items: updatedItems });
   };
 
-  // Crear Nuevo Presupuesto con Correlativo Dinámico (Siguiente al mayor en Sheets)
+  // Crear Nuevo Presupuesto con Correlativo Dinámico
   const handleCreateNewPresupuesto = () => {
     let nextNum = 228;
     if (presupuestos.length > 0) {
       let maxDigits = 227;
       presupuestos.forEach(p => {
-        const val = Number(p.correlativo) || 0;
-        if (val > maxDigits) maxDigits = val;
+        const match = String(p.correlativo || '').match(/\d+/);
+        if (match) {
+          const val = parseInt(match[0], 10);
+          if (val > maxDigits) maxDigits = val;
+        }
       });
       nextNum = maxDigits + 1;
     }
@@ -295,7 +293,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
       ivaAmount: 0,
       totalAmount: 0,
       anticipo50: 0,
-      nicChileFee: 9990,
+      nicChileFee: 0,
       status: 'borrador'
     };
 
@@ -325,7 +323,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           action: 'save_presupuesto',
-          correlativo: formData.correlativo,
+          correlativo: String(formData.correlativo),
           fecha: formData.date,
           cliente: formData.clientCompany || formData.clientName || 'Cliente',
           atencion: formData.clientName,
@@ -402,7 +400,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
                     setFormData(p);
                   }}
                   className={`p-2.5 rounded-lg border text-xs cursor-pointer transition flex items-center justify-between ${
-                    formData.correlativo === p.correlativo
+                    String(formData.correlativo) === String(p.correlativo)
                       ? 'border-emerald-500 bg-emerald-50/60 font-semibold'
                       : 'border-slate-200 hover:bg-slate-50'
                   }`}
@@ -432,9 +430,9 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
             <div className="flex items-center gap-1.5">
               <span className="text-slate-400 font-semibold text-[11px]">N°</span>
               <input
-                type="number"
+                type="text"
                 value={formData.correlativo}
-                onChange={(e) => handleFieldChange('correlativo', Number(e.target.value) || 0)}
+                onChange={(e) => handleFieldChange('correlativo', e.target.value)}
                 className="w-20 p-1 bg-emerald-50 border border-emerald-300 font-mono font-bold text-center text-emerald-800 rounded-md focus:outline-none"
               />
             </div>
@@ -556,17 +554,31 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
             ))}
           </div>
 
-          {/* Checkbox IVA */}
-          <div className="bg-slate-100 p-3 rounded-xl border border-slate-200 space-y-1">
-            <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
-              <input
-                type="checkbox"
-                checked={formData.appliesIva}
-                onChange={(e) => handleFieldChange('appliesIva', e.target.checked)}
-                className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
-              />
-              <span>Aplica IVA 19% en la cotización</span>
-            </label>
+          {/* Checkboxes de Opciones Financieras */}
+          <div className="space-y-2">
+            <div className="bg-slate-100 p-3 rounded-xl border border-slate-200">
+              <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={formData.appliesIva}
+                  onChange={(e) => handleFieldChange('appliesIva', e.target.checked)}
+                  className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+                />
+                <span>Aplica IVA 19% en la cotización</span>
+              </label>
+            </div>
+
+            <div className="bg-slate-100 p-3 rounded-xl border border-slate-200">
+              <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={Boolean(formData.nicChileFee && formData.nicChileFee > 0)}
+                  onChange={(e) => handleFieldChange('nicChileFee', e.target.checked ? 9990 : 0)}
+                  className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+                />
+                <span>¿Incluir registro de Dominio .cl en NIC Chile ($9.990)?</span>
+              </label>
+            </div>
           </div>
 
           {/* Editor de Condiciones Comerciales y Garantía */}
@@ -742,10 +754,14 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
                     <span>50% Anticipo para Iniciar:</span>
                     <span className="font-mono font-bold">{formatCLP(financials.anticipo50)}</span>
                   </div>
-                  <div className="flex justify-between text-emerald-800">
-                    <span>Arancel Dominio NIC Chile (.cl):</span>
-                    <span className="font-mono font-semibold">$9.990</span>
-                  </div>
+                  
+                  {/* Desglose condicional de Dominio NIC Chile */}
+                  {Boolean(formData.nicChileFee && formData.nicChileFee > 0) && (
+                    <div className="flex justify-between text-emerald-800 border-t border-emerald-200/60 pt-1 mt-1">
+                      <span>Arancel Dominio NIC Chile (.cl):</span>
+                      <span className="font-mono font-semibold">$9.990</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
