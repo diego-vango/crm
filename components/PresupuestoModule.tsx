@@ -7,41 +7,35 @@ import {
   Printer, 
   Plus, 
   Trash2, 
-  Sparkles, 
   Check, 
   Share2, 
   FileText, 
   RefreshCw,
   Save,
-  ShieldCheck,
-  CreditCard
+  FileSpreadsheet
 } from 'lucide-react';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyAYhe9xRCAh1cEjlWq7fioCmOJfcJqwGrOkZFSTGczZlVBr0vr4eqrUeMGQ2yjq899/exec';
 
-interface PresupuestoModuleProps {
-  presupuestos: Presupuesto[];
-  setPresupuestos: React.Dispatch<React.SetStateAction<Presupuesto[]>>;
-  activePresupuesto: Presupuesto;
-  setActivePresupuesto: React.Dispatch<React.SetStateAction<Presupuesto>>;
-  onSavePresupuesto: (p: Presupuesto) => void;
-}
+const DEFAULT_CONDITIONS = `• Forma de Pago: 50% de anticipo + arancel dominio NIC Chile (ref. $9.990) para iniciar los trabajos. 50% restante contra entrega de la plataforma actualizada y probada.
+• Plazo de Ejecución: 3 a 5 días hábiles desde la recepción de contenidos y material a ingresar en el sitio web (textos, logos, fotos, links de video).
+• Garantía de Estabilidad (90 Días): PáginasPro.cl incluye una garantía técnica de 3 meses que cubre la estabilidad de la carga web y correcta visualización de los elementos entregados.`;
 
 const PRESET_SERVICES = [
   {
     title: 'Desarrollo Sitio Web Pro + Dominio .cl',
     description: 'Diseño UX/UI responsivo corporativo en Next.js/Tailwind, optimización SEO de velocidad, SSL y configuración de hosting.',
-    netAmount: 650000,
+    netAmount: 0,
   },
   {
     title: 'Tienda Online Ecommerce + Pasarela Webpay Plus',
     description: 'Catálogo de productos con carro de compras, integración de pagos Webpay Plus / Transbank y panel autoadministrable.',
-    netAmount: 950000,
+    netAmount: 0,
   },
   {
     title: 'Sistema Reserva de Horas Médicas & Agenda',
     description: 'Módulo interactivo de toma de agendamientos con confirmación por correo, calendario por profesional y ficha técnica.',
-    netAmount: 450000,
+    netAmount: 0,
   },
 ];
 
@@ -51,6 +45,14 @@ function createItemId(): string {
   return `item-${itemIdCounter}-${Date.now().toString(36)}`;
 }
 
+interface PresupuestoModuleProps {
+  presupuestos: Presupuesto[];
+  setPresupuestos: React.Dispatch<React.SetStateAction<Presupuesto[]>>;
+  activePresupuesto: Presupuesto;
+  setActivePresupuesto: React.Dispatch<React.SetStateAction<Presupuesto>>;
+  onSavePresupuesto: (p: Presupuesto) => void;
+}
+
 export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
   presupuestos,
   setPresupuestos,
@@ -58,7 +60,37 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
   setActivePresupuesto,
   onSavePresupuesto,
 }) => {
-  const [formData, setFormData] = useState<Presupuesto>(activePresupuesto);
+  // Configuración de Presupuesto Inicial (N° 1 si la lista está vacía)
+  const [formData, setFormData] = useState<Presupuesto>(() => {
+    if (activePresupuesto && activePresupuesto.correlativo) return activePresupuesto;
+    return {
+      id: 'ppto-1',
+      correlativo: 1,
+      clientName: '',
+      clientCompany: '',
+      clientEmail: 'diego@paginaspro.cl',
+      clientPhone: '',
+      date: new Date().toISOString().split('T')[0],
+      validityDays: 15,
+      items: [
+        {
+          id: createItemId(),
+          title: 'Desarrollo Sitio Web Pro Personal',
+          description: 'Diseño UX/UI responsivo, optimización SEO de velocidad, SSL y agendamiento integrado.',
+          netAmount: 70000,
+        }
+      ],
+      appliesIva: true,
+      notes: DEFAULT_CONDITIONS,
+      totalNet: 70000,
+      ivaAmount: 13300,
+      totalAmount: 83300,
+      anticipo50: 41650,
+      nicChileFee: 9990,
+      status: 'borrador'
+    };
+  });
+
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncingHistorial, setIsSyncingHistorial] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -66,7 +98,10 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
 
   useEffect(() => {
     if (activePresupuesto) {
-      setFormData(activePresupuesto);
+      setFormData({
+        ...activePresupuesto,
+        notes: activePresupuesto.notes || DEFAULT_CONDITIONS
+      });
     }
   }, [activePresupuesto]);
 
@@ -91,26 +126,26 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
               id: 'item-1',
               title: item.asunto || 'Desarrollo Sitio Web Pro',
               description: 'Servicio maquetado en Next.js/Tailwind CSS con $0/mes de servidor.',
-              netAmount: Number(item.montoNeto) || 100000
+              netAmount: Number(item.montoNeto) || 0
             }];
           }
 
-          const net = Number(item.montoNeto) || 100000;
+          const net = Number(item.montoNeto) || 0;
           const iva = Number(item.iva) || Math.round(net * 0.19);
           const total = Number(item.montoTotal) || (net + iva);
 
           return {
             id: `ppto-${item.correlativo}`,
-            correlativo: Number(item.correlativo) || 228,
-            clientName: item.atencion || item.cliente || 'Cliente',
-            clientCompany: item.cliente || 'Empresa',
+            correlativo: Number(item.correlativo) || 1,
+            clientName: item.atencion || item.cliente || '',
+            clientCompany: item.cliente || '',
             clientEmail: 'diego@paginaspro.cl',
             clientPhone: item.telefono || '',
             date: item.fecha || new Date().toISOString().split('T')[0],
             validityDays: 15,
             items: parsedItems,
             appliesIva: iva > 0,
-            notes: item.condiciones || '50% de anticipo para iniciar el proyecto. 50% restante contra entrega conforme.',
+            notes: item.condiciones || DEFAULT_CONDITIONS,
             totalNet: net,
             ivaAmount: iva,
             totalAmount: total,
@@ -124,6 +159,9 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
         if (mappedPptos.length > 0) {
           setActivePresupuesto(mappedPptos[0]);
         }
+      } else {
+        // Si el Sheet está totalmente vacío, dejamos la lista vacía
+        setPresupuestos([]);
       }
     } catch (err) {
       console.error('Error al cargar presupuestos desde Sheets:', err);
@@ -160,7 +198,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
           id: createItemId(),
           title: 'Nuevo Servicio / Módulo',
           description: 'Descripción detallada del alcance del trabajo.',
-          netAmount: 100000,
+          netAmount: 0,
         };
     setFormData({ ...formData, items: [...formData.items, newItem] });
   };
@@ -169,6 +207,43 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
     if (formData.items.length <= 1) return;
     const updatedItems = formData.items.filter((_, i) => i !== index);
     setFormData({ ...formData, items: updatedItems });
+  };
+
+  // Crear Nuevo Presupuesto con Correlativo Dinámico
+  const handleCreateNewPresupuesto = () => {
+    const nextNum = presupuestos.length > 0 
+      ? Math.max(...presupuestos.map(p => p.correlativo || 0)) + 1 
+      : 1;
+
+    const newPpto: Presupuesto = {
+      id: `ppto-${nextNum}`,
+      correlativo: nextNum,
+      clientName: '',
+      clientCompany: '',
+      clientEmail: 'diego@paginaspro.cl',
+      clientPhone: '',
+      date: new Date().toISOString().split('T')[0],
+      validityDays: 15,
+      items: [
+        {
+          id: createItemId(),
+          title: 'Desarrollo Sitio Web Pro',
+          description: 'Diseño UX/UI responsivo, optimización SEO y agendamiento.',
+          netAmount: 0,
+        }
+      ],
+      appliesIva: true,
+      notes: DEFAULT_CONDITIONS,
+      totalNet: 0,
+      ivaAmount: 0,
+      totalAmount: 0,
+      anticipo50: 0,
+      nicChileFee: 9990,
+      status: 'borrador'
+    };
+
+    setFormData(newPpto);
+    setActivePresupuesto(newPpto);
   };
 
   // Guardar en Google Sheets
@@ -195,7 +270,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
           action: 'save_presupuesto',
           correlativo: formData.correlativo,
           fecha: formData.date,
-          cliente: formData.clientCompany || formData.clientName,
+          cliente: formData.clientCompany || formData.clientName || 'Cliente',
           atencion: formData.clientName,
           telefono: formData.clientPhone,
           asunto: asuntoText,
@@ -209,6 +284,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
+      fetchPresupuestosFromSheets();
     } catch (err) {
       console.error('Error guardando presupuesto en Google Sheets:', err);
     } finally {
@@ -229,53 +305,70 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start font-sans">
       
-      {/* IZQUIERDA: FORMULARIO Y HISTORIAL */}
+      {/* PANEL IZQUIERDO: EDITOR Y HISTORIAL (NO SE IMPRIME) */}
       <div className="no-print lg:col-span-5 space-y-5 text-xs">
         
-        {/* Historial de Presupuestos */}
+        {/* Historial de Presupuestos (Sincronizado con Sheets) */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="font-bold text-slate-900 text-xs uppercase tracking-wider">Historial de Presupuestos</h3>
               <p className="text-[10px] text-slate-400">Pestaña Historial_Presupuestos en Sheets</p>
             </div>
-            <button
-              onClick={fetchPresupuestosFromSheets}
-              disabled={isSyncingHistorial}
-              className="p-1.5 text-slate-500 hover:text-emerald-600 rounded-lg hover:bg-slate-100 transition"
-              title="Actualizar Historial"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isSyncingHistorial ? 'animate-spin' : ''}`} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleCreateNewPresupuesto}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] px-2.5 py-1 rounded-lg flex items-center gap-1 transition shadow-xs"
+                title="Nuevo Presupuesto"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Nuevo PPTO</span>
+              </button>
+              <button
+                onClick={fetchPresupuestosFromSheets}
+                disabled={isSyncingHistorial}
+                className="p-1.5 text-slate-500 hover:text-emerald-600 rounded-lg hover:bg-slate-100 transition"
+                title="Actualizar Historial"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncingHistorial ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
           </div>
 
-          <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-            {presupuestos.map((p) => (
-              <div
-                key={p.id}
-                onClick={() => {
-                  setActivePresupuesto(p);
-                  setFormData(p);
-                }}
-                className={`p-2.5 rounded-lg border text-xs cursor-pointer transition flex items-center justify-between ${
-                  formData.correlativo === p.correlativo
-                    ? 'border-emerald-500 bg-emerald-50/60 font-semibold'
-                    : 'border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                <div>
-                  <span className="font-mono font-bold text-slate-900">PPTO N° {p.correlativo}</span>
-                  <span className="text-slate-500 block truncate max-w-[180px]">{p.clientCompany || p.clientName}</span>
+          {presupuestos.length === 0 ? (
+            <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-lg text-center text-slate-400 text-xs">
+              <FileSpreadsheet className="w-5 h-5 mx-auto mb-1 text-slate-300" />
+              <span>No hay presupuestos guardados en el Sheet.</span>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+              {presupuestos.map((p) => (
+                <div
+                  key={p.id}
+                  onClick={() => {
+                    setActivePresupuesto(p);
+                    setFormData(p);
+                  }}
+                  className={`p-2.5 rounded-lg border text-xs cursor-pointer transition flex items-center justify-between ${
+                    formData.correlativo === p.correlativo
+                      ? 'border-emerald-500 bg-emerald-50/60 font-semibold'
+                      : 'border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <div>
+                    <span className="font-mono font-bold text-slate-900">PPTO N° {p.correlativo}</span>
+                    <span className="text-slate-500 block truncate max-w-[180px]">{p.clientCompany || p.clientName || 'Cliente sin nombre'}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-mono text-emerald-700 font-extrabold">{formatCLP(p.totalAmount)}</span>
+                    <span className="text-[10px] block text-slate-400">{p.date}</span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="font-mono text-emerald-700 font-extrabold">{formatCLP(p.totalAmount)}</span>
-                  <span className="text-[10px] block text-slate-400">{p.date}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Formulario Editor */}
@@ -286,9 +379,15 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
               <FileText className="w-4 h-4 text-emerald-600" />
               <span>Generador de Presupuesto</span>
             </h2>
-            <span className="text-xs font-mono font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-              N° {formData.correlativo}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400 font-semibold text-[11px]">N°</span>
+              <input
+                type="number"
+                value={formData.correlativo}
+                onChange={(e) => handleFieldChange('correlativo', Number(e.target.value))}
+                className="w-16 p-1 bg-emerald-50 border border-emerald-300 font-mono font-bold text-center text-emerald-800 rounded-md focus:outline-none"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -420,6 +519,18 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
             </label>
           </div>
 
+          {/* Editor de Condiciones Comerciales y Garantía */}
+          <div>
+            <label className="font-bold text-slate-800 block mb-1">Condiciones Comerciales y Garantía (Editable)</label>
+            <textarea
+              value={formData.notes || ''}
+              onChange={(e) => handleFieldChange('notes', e.target.value)}
+              rows={4}
+              placeholder="Escribe las condiciones comerciales..."
+              className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 text-xs font-medium focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+
           {/* Acciones */}
           <div className="pt-3 border-t border-slate-200 space-y-2">
             {saveSuccess && (
@@ -461,7 +572,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
 
       </div>
 
-      {/* DERECHA: DOCUMENTO OFICIAL (FIDELIDAD IMPRESIÓN AL PDF ORIGINAL) */}
+      {/* DERECHA: HOJA PREVIEW OFICIAL (DOCUMENTO A IMPRIMIR) */}
       <div className="lg:col-span-7 flex justify-center">
         
         <div className="print-page bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-2xl p-8 sm:p-12 w-full max-w-[800px] font-sans print:p-0 print:border-none print:shadow-none print:max-w-none">
@@ -489,7 +600,11 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Cliente / Empresa:</span>
                 <p className="font-bold text-slate-900 text-sm">
-                  {formData.clientName} {formData.clientCompany ? `| ${formData.clientCompany}` : ''}
+                  {formData.clientName || formData.clientCompany ? (
+                    `${formData.clientName} ${formData.clientCompany ? `| ${formData.clientCompany}` : ''}`
+                  ) : (
+                    <span className="text-slate-300 italic">Nombre del cliente</span>
+                  )}
                 </p>
               </div>
               {formData.clientPhone && (
@@ -531,13 +646,18 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
                     <h4 className="font-bold text-slate-900 text-sm">
                       {idx + 1}. {item.title}
                     </h4>
-                    <span className="font-mono font-bold text-slate-900 text-xs">
-                      Valor Neto: {formatCLP(item.netAmount)}
-                    </span>
+                    {/* Ocultar "Valor Neto" si es 0 */}
+                    {Number(item.netAmount) > 0 && (
+                      <span className="font-mono font-bold text-slate-900 text-xs">
+                        Valor Neto: {formatCLP(item.netAmount)}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-slate-600 leading-relaxed whitespace-pre-wrap font-medium pl-4 border-l-2 border-slate-200">
-                    {item.description}
-                  </p>
+                  {item.description && (
+                    <p className="text-slate-600 leading-relaxed whitespace-pre-wrap font-medium pl-4 border-l-2 border-slate-200">
+                      {item.description}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
@@ -561,7 +681,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
             {/* RESUMEN DE TOTALES */}
             <div className="space-y-2">
               <div className="flex justify-between py-1 text-slate-600 font-medium">
-                <span>Valor Neto Final:</span>
+                <span>Valor Neto:</span>
                 <span className="font-mono font-bold text-slate-900">{formatCLP(financials.totalNet)}</span>
               </div>
 
@@ -593,20 +713,14 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
 
           </div>
 
-          {/* CONDICIONES COMERCIALES Y GARANTÍA */}
+          {/* CONDICIONES COMERCIALES Y GARANTÍA (DINÁMICAS Y EDITABLES) */}
           <div className="mt-8 pt-4 border-t border-slate-200 text-[11px] text-slate-600 space-y-2">
             <span className="font-bold uppercase tracking-wider text-slate-900 block text-[10px]">
               CONDICIONES COMERCIALES Y GARANTÍA
             </span>
-            <p className="leading-relaxed">
-              • <strong>Forma de Pago:</strong> 50% de anticipo + arancel dominio NIC Chile (ref. $9.990) para iniciar los trabajos. 50% restante contra entrega de la plataforma actualizada y probada.
-            </p>
-            <p className="leading-relaxed">
-              • <strong>Plazo de Ejecución:</strong> 3 a 5 días hábiles desde la recepción de contenidos y material a ingresar en el sitio web (textos, logos, fotos, links de video).
-            </p>
-            <p className="leading-relaxed">
-              • <strong>Garantía de Estabilidad (90 Días):</strong> PáginasPro.cl incluye una garantía técnica de 3 meses que cubre la estabilidad de la carga web y correcta visualización de los elementos entregados.
-            </p>
+            <div className="whitespace-pre-wrap leading-relaxed font-medium text-slate-700">
+              {formData.notes || DEFAULT_CONDITIONS}
+            </div>
           </div>
 
           {/* PIE DE PÁGINA */}
