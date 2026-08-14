@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Presupuesto, BudgetItem, COMPANY_DATA } from '@/types/crm';
+import { Presupuesto, BudgetItem } from '@/types/crm';
 import { formatCLP, calculateBudgetFinancials, formatDateCL } from '@/lib/formatters';
 import { 
   Printer, 
@@ -84,16 +84,17 @@ const PRESET_SERVICES = [
   },
 ];
 
-// Parser para limpiar montos en pesos chilenos
+// Parser para limpiar montos en pesos chilenos ($50,000.00 -> 50000)
 const parseCLPAmount = (val: any): number => {
   if (val === null || val === undefined || val === '') return 0;
   if (typeof val === 'number') return Math.round(val);
-  const str = String(val).trim();
+  let str = String(val).trim();
+  str = str.replace(/[\.,]00?$/g, '');
   const cleaned = str.replace(/[^0-9]/g, '');
   return parseInt(cleaned, 10) || 0;
 };
 
-// Parser para extraer número limpio de correlativo
+// Parser para números de correlativo
 const parseCorrelativoNumber = (val: any): number => {
   if (!val) return 228;
   if (typeof val === 'number') return val;
@@ -228,9 +229,15 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
           };
         });
 
+        // Limpiar el localStorage viejo con datos de prueba
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('paginaspro_presupuestos', JSON.stringify(mappedPptos));
+        }
+
         setPresupuestos(mappedPptos);
         if (mappedPptos.length > 0) {
           setActivePresupuesto(mappedPptos[0]);
+          setFormData(mappedPptos[0]);
         }
       } else {
         setPresupuestos([]);
@@ -378,7 +385,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start font-sans">
       
-      {/* PANEL IZQUIERDO: EDITOR Y HISTORIAL (NO SE IMPRIME) */}
+      {/* PANEL IZQUIERDO: EDITOR Y HISTORIAL */}
       <div className="no-print lg:col-span-5 space-y-5 text-xs">
         
         {/* Historial de Presupuestos (Sincronizado con Sheets) */}
@@ -594,11 +601,11 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
           <div>
             <label className="font-bold text-slate-800 block mb-1">Condiciones Comerciales y Garantía (Editable)</label>
             <textarea
-              value={formData.notes || ''}
+              value={formData.notes || DEFAULT_CONDITIONS}
               onChange={(e) => handleFieldChange('notes', e.target.value)}
-              rows={4}
+              rows={5}
               placeholder="Escribe las condiciones comerciales..."
-              className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 text-xs font-medium focus:outline-none focus:border-emerald-500"
+              className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 text-xs font-medium focus:outline-none focus:border-emerald-500 font-sans"
             />
           </div>
 
@@ -707,7 +714,6 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
                     <h4 className="font-bold text-slate-900 text-sm">
                       {idx + 1}. {item.title}
                     </h4>
-                    {/* Ocultar "Valor Neto" si es 0 */}
                     {Number(item.netAmount) > 0 && (
                       <span className="font-mono font-bold text-slate-900 text-xs">
                         Valor Neto: {formatCLP(item.netAmount)}
