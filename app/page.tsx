@@ -92,46 +92,49 @@ export default function CrmDashboardPage() {
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('paginaspro_crm_auth');
+      localStorage.removeItem('paginaspro_presupuestos');
     }
     setIsAuthenticated(false);
     setPinInput('');
   };
 
-  // State
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
-  const [activePresupuesto, setActivePresupuesto] = useState<Presupuesto>({
-    id: 'ppto-228',
-    correlativo: 228,
-    clientName: '',
-    clientCompany: '',
-    clientEmail: 'diego@paginaspro.cl',
-    clientPhone: '',
-    date: new Date().toISOString().split('T')[0],
-    validityDays: 15,
-    items: [
-      {
-        id: createPageItemId(),
-        title: 'Desarrollo Sitio Web Pro + Agenda Digital',
-        description: 'Diseño UX/UI responsivo, optimización SEO de velocidad, SSL y agendamiento integrado.',
-        netAmount: 70000,
-      }
-    ],
-    appliesIva: true,
-    notes: DEFAULT_CONDITIONS,
-    totalNet: 70000,
-    ivaAmount: 13300,
-    totalAmount: 83300,
-    anticipo50: 41650,
-    nicChileFee: 9990,
-    status: 'borrador'
-  });
+  // State initialized with real historical data
+  const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
+  const [presupuestos, setPresupuestos] = useState<Presupuesto[]>(INITIAL_PRESUPUESTOS);
+  const [activePresupuesto, setActivePresupuesto] = useState<Presupuesto>(
+    INITIAL_PRESUPUESTOS[0] || {
+      id: 'ppto-228',
+      correlativo: 228,
+      clientName: '',
+      clientCompany: '',
+      clientEmail: 'diego@paginaspro.cl',
+      clientPhone: '',
+      date: new Date().toISOString().split('T')[0],
+      validityDays: 15,
+      items: [
+        {
+          id: createPageItemId(),
+          title: 'Desarrollo Sitio Web Pro + Agenda Digital',
+          description: 'Diseño UX/UI responsivo, optimización SEO de velocidad, SSL y agendamiento integrado.',
+          netAmount: 70000,
+        }
+      ],
+      appliesIva: true,
+      notes: DEFAULT_CONDITIONS,
+      totalNet: 70000,
+      ivaAmount: 13300,
+      totalAmount: 83300,
+      anticipo50: 41650,
+      nicChileFee: 9990,
+      status: 'borrador'
+    }
+  );
 
   const [informes, setInformes] = useState<InformeEntrega[]>(INITIAL_INFORMES);
   const [activeInforme, setActiveInforme] = useState<InformeEntrega>(INITIAL_INFORMES[0] || {} as any);
   const [surveys, setSurveys] = useState<SurveyResponse[]>(INITIAL_SURVEYS);
 
-  // Carga Global de Presupuestos desde Google Sheets al iniciar
+  // Sincronización continua en segundo plano con Google Sheets
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -162,12 +165,12 @@ export default function CrmDashboardPage() {
             const net = parseCLPAmount(item.montoNeto);
             const iva = parseCLPAmount(item.iva) || Math.round(net * 0.19);
             const total = parseCLPAmount(item.montoTotal) || (net + iva);
-            const matchCorr = String(item.correlativo || '1').match(/\d+/);
+            const matchCorr = String(item.correlativo || '228').match(/\d+/);
             const numCorr = matchCorr ? parseInt(matchCorr[0], 10) : 228;
 
             return {
               id: `ppto-${numCorr}`,
-              correlativo: numCorr,
+              correlativo: item.correlativo || numCorr,
               clientName: item.atencion || item.cliente || '',
               clientCompany: item.cliente || '',
               clientEmail: 'diego@paginaspro.cl',
@@ -187,12 +190,9 @@ export default function CrmDashboardPage() {
           });
 
           setPresupuestos(mappedPptos);
-          if (mappedPptos.length > 0) {
-            setActivePresupuesto(mappedPptos[0]);
-          }
         }
       } catch (err) {
-        console.error('Error al cargar presupuestos globales:', err);
+        console.error('Sincronización en segundo plano con Sheets finalizada:', err);
       }
     }
 
@@ -203,7 +203,7 @@ export default function CrmDashboardPage() {
   const handleConvertLeadToQuote = (lead: Lead) => {
     let nextCorrelativo = 228;
     if (presupuestos.length > 0) {
-      nextCorrelativo = Math.max(...presupuestos.map(p => Number(p.correlativo) || 0)) + 1;
+      nextCorrelativo = Math.max(...presupuestos.map(p => Number(String(p.correlativo).match(/\d+/)?.[0] || 0))) + 1;
     }
 
     const newPpto: Presupuesto = {
@@ -243,7 +243,7 @@ export default function CrmDashboardPage() {
   const handleCreateNewPresupuesto = () => {
     let nextCorrelativo = 228;
     if (presupuestos.length > 0) {
-      nextCorrelativo = Math.max(...presupuestos.map(p => Number(p.correlativo) || 0)) + 1;
+      nextCorrelativo = Math.max(...presupuestos.map(p => Number(String(p.correlativo).match(/\d+/)?.[0] || 0))) + 1;
     }
 
     const newPpto: Presupuesto = {
