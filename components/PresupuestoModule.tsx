@@ -93,6 +93,13 @@ const parseCLPAmount = (val: any): number => {
   return parseInt(cleaned, 10) || 0;
 };
 
+const parseCorrelativoNumber = (val: any): number => {
+  if (!val) return 228;
+  if (typeof val === 'number') return val;
+  const match = String(val).match(/\d+/);
+  return match ? parseInt(match[0], 10) : 228;
+};
+
 const cleanIsoDate = (d: any): string => {
   if (!d) return new Date().toISOString().split('T')[0];
   return String(d).split('T')[0];
@@ -140,18 +147,18 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
     }
   }, [activePresupuesto]);
 
-  // Cargar Historial desde Google Sheets
+  // Cargar Historial en Tiempo Real desde Google Sheets (Sin Cache)
   const fetchPresupuestosFromSheets = useCallback(async () => {
     setIsSyncingHistorial(true);
     try {
-      const res = await fetch(`${APPS_SCRIPT_URL}?type=presupuestos`);
+      const res = await fetch(`${APPS_SCRIPT_URL}?type=presupuestos`, { cache: 'no-store' });
       const text = await res.text();
       let data: any[];
 
       try {
         data = JSON.parse(text);
       } catch (parseErr) {
-        console.error('Respuesta de Sheets no es JSON:', text);
+        console.error('Error al parsear JSON de Google Sheets:', text);
         return;
       }
 
@@ -176,11 +183,11 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
           const net = parseCLPAmount(item.montoNeto);
           const iva = parseCLPAmount(item.iva) || Math.round(net * 0.19);
           const total = parseCLPAmount(item.montoTotal) || (net + iva);
-          const correlativoVal = item.correlativo || '228';
+          const numCorrelativo = parseCorrelativoNumber(item.correlativo);
 
           return {
-            id: `ppto-${correlativoVal}`,
-            correlativo: correlativoVal,
+            id: `ppto-${numCorrelativo}`,
+            correlativo: numCorrelativo,
             clientName: item.atencion || item.cliente || '',
             clientCompany: item.cliente || '',
             clientEmail: 'diego@paginaspro.cl',
@@ -200,13 +207,19 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
         });
 
         setPresupuestos(mappedPptos);
+        if (mappedPptos.length > 0) {
+          setActivePresupuesto(mappedPptos[0]);
+          setFormData(mappedPptos[0]);
+        }
+      } else {
+        setPresupuestos([]);
       }
     } catch (err) {
       console.error('Error al cargar presupuestos desde Sheets:', err);
     } finally {
       setIsSyncingHistorial(false);
     }
-  }, [setPresupuestos]);
+  }, [setPresupuestos, setActivePresupuesto]);
 
   useEffect(() => {
     fetchPresupuestosFromSheets();
@@ -247,17 +260,14 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
     setFormData({ ...formData, items: updatedItems });
   };
 
-  // Crear Nuevo Presupuesto con Correlativo Dinámico
+  // Crear Nuevo Presupuesto con Correlativo Dinámico (Siguiente al mayor en Sheets)
   const handleCreateNewPresupuesto = () => {
     let nextNum = 228;
     if (presupuestos.length > 0) {
       let maxDigits = 227;
       presupuestos.forEach(p => {
-        const match = String(p.correlativo || '').match(/\d+/);
-        if (match) {
-          const val = parseInt(match[0], 10);
-          if (val > maxDigits) maxDigits = val;
-        }
+        const val = Number(p.correlativo) || 0;
+        if (val > maxDigits) maxDigits = val;
       });
       nextNum = maxDigits + 1;
     }
@@ -315,7 +325,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           action: 'save_presupuesto',
-          correlativo: String(formData.correlativo),
+          correlativo: formData.correlativo,
           fecha: formData.date,
           cliente: formData.clientCompany || formData.clientName || 'Cliente',
           atencion: formData.clientName,
@@ -392,7 +402,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
                     setFormData(p);
                   }}
                   className={`p-2.5 rounded-lg border text-xs cursor-pointer transition flex items-center justify-between ${
-                    String(formData.correlativo) === String(p.correlativo)
+                    formData.correlativo === p.correlativo
                       ? 'border-emerald-500 bg-emerald-50/60 font-semibold'
                       : 'border-slate-200 hover:bg-slate-50'
                   }`}
@@ -422,9 +432,9 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
             <div className="flex items-center gap-1.5">
               <span className="text-slate-400 font-semibold text-[11px]">N°</span>
               <input
-                type="text"
+                type="number"
                 value={formData.correlativo}
-                onChange={(e) => handleFieldChange('correlativo', e.target.value)}
+                onChange={(e) => handleFieldChange('correlativo', Number(e.target.value) || 0)}
                 className="w-20 p-1 bg-emerald-50 border border-emerald-300 font-mono font-bold text-center text-emerald-800 rounded-md focus:outline-none"
               />
             </div>
