@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Presupuesto, BudgetItem } from '@/types/crm';
+import { Presupuesto, BudgetItem, COMPANY_DATA } from '@/types/crm';
 import { formatCLP, calculateBudgetFinancials, formatDateCL } from '@/lib/formatters';
 import { 
   Printer, 
@@ -94,7 +94,7 @@ const parseCLPAmount = (val: any): number => {
   return parseInt(cleaned, 10) || 0;
 };
 
-// Parser para números de correlativo
+// Parser para números de correlativo (acepta guiones "220-1" o números "228")
 const parseCorrelativoNumber = (val: any): number => {
   if (!val) return 228;
   if (typeof val === 'number') return val;
@@ -183,7 +183,15 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
     setIsSyncingHistorial(true);
     try {
       const res = await fetch(`${APPS_SCRIPT_URL}?type=presupuestos`);
-      const data = await res.json();
+      const rawText = await res.text();
+      let data: any[];
+
+      try {
+        data = JSON.parse(rawText);
+      } catch (parseErr) {
+        console.error('Error al parsear JSON desde Google Sheets:', rawText);
+        return;
+      }
 
       if (Array.isArray(data) && data.length > 0) {
         const mappedPptos: Presupuesto[] = data.map((item: any) => {
@@ -229,7 +237,6 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
           };
         });
 
-        // Limpiar el localStorage viejo con datos de prueba
         if (typeof window !== 'undefined') {
           localStorage.setItem('paginaspro_presupuestos', JSON.stringify(mappedPptos));
         }
@@ -243,7 +250,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
         setPresupuestos([]);
       }
     } catch (err) {
-      console.error('Error al cargar presupuestos desde Sheets:', err);
+      console.error('Error de red al cargar presupuestos desde Sheets:', err);
     } finally {
       setIsSyncingHistorial(false);
     }
