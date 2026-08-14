@@ -54,7 +54,7 @@ const PRESET_SERVICES = [
   },
   {
     title: 'Portal Web Catálogo Automotriz / Alta Gama',
-    description: 'Vitrina digital profesional con ficha técnica por vehículo, galería HD, video recorrido y cotización a WhatsApp.',
+    description: 'Vitrina digital profesional mobile-first con ficha técnica por vehículo, galería HD, video recorrido y cotización a WhatsApp.',
     netAmount: 100000,
   },
   {
@@ -84,7 +84,7 @@ const PRESET_SERVICES = [
   },
 ];
 
-// Parser para limpiar montos en pesos chilenos ($71.400 -> 71400)
+// Parser para limpiar montos en pesos chilenos
 const parseCLPAmount = (val: any): number => {
   if (val === null || val === undefined || val === '') return 0;
   if (typeof val === 'number') return Math.round(val);
@@ -93,13 +93,19 @@ const parseCLPAmount = (val: any): number => {
   return parseInt(cleaned, 10) || 0;
 };
 
-// Parser de Fechas limpias
+// Parser para extraer número limpio de correlativo
+const parseCorrelativoNumber = (val: any): number => {
+  if (!val) return 228;
+  if (typeof val === 'number') return val;
+  const match = String(val).match(/\d+/);
+  return match ? parseInt(match[0], 10) : 228;
+};
+
 const cleanIsoDate = (d: any): string => {
   if (!d) return new Date().toISOString().split('T')[0];
   return String(d).split('T')[0];
 };
 
-// Parser de Teléfono limpio
 const cleanPhoneText = (phoneRaw: any) => {
   if (!phoneRaw || String(phoneRaw).includes('#ERROR!') || String(phoneRaw).includes('#REF!')) {
     return '';
@@ -132,7 +138,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
     if (activePresupuesto && activePresupuesto.correlativo) return activePresupuesto;
     return {
       id: 'ppto-228',
-      correlativo: '228',
+      correlativo: 228,
       clientName: '',
       clientCompany: '',
       clientEmail: 'diego@paginaspro.cl',
@@ -199,11 +205,11 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
           const net = parseCLPAmount(item.montoNeto);
           const iva = parseCLPAmount(item.iva) || Math.round(net * 0.19);
           const total = parseCLPAmount(item.montoTotal) || (net + iva);
-          const correlativeStr = String(item.correlativo || '1').trim();
+          const numCorrelativo = parseCorrelativoNumber(item.correlativo);
 
           return {
-            id: `ppto-${correlativeStr}`,
-            correlativo: correlativeStr as any,
+            id: `ppto-${numCorrelativo}`,
+            correlativo: numCorrelativo,
             clientName: item.atencion || item.cliente || '',
             clientCompany: item.cliente || '',
             clientEmail: 'diego@paginaspro.cl',
@@ -275,24 +281,21 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
     setFormData({ ...formData, items: updatedItems });
   };
 
-  // Crear Nuevo Presupuesto con Correlativo Dinámico (después del último)
+  // Crear Nuevo Presupuesto con Correlativo Dinámico
   const handleCreateNewPresupuesto = () => {
     let nextNum = 228;
     if (presupuestos.length > 0) {
       let maxDigits = 227;
       presupuestos.forEach(p => {
-        const match = String(p.correlativo || '').match(/^\d+/);
-        if (match) {
-          const val = parseInt(match[0], 10);
-          if (val > maxDigits) maxDigits = val;
-        }
+        const val = Number(p.correlativo) || 0;
+        if (val > maxDigits) maxDigits = val;
       });
       nextNum = maxDigits + 1;
     }
 
     const newPpto: Presupuesto = {
       id: `ppto-${nextNum}`,
-      correlativo: String(nextNum) as any,
+      correlativo: nextNum,
       clientName: '',
       clientCompany: '',
       clientEmail: 'diego@paginaspro.cl',
@@ -343,7 +346,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
           action: 'save_presupuesto',
-          correlativo: String(formData.correlativo),
+          correlativo: formData.correlativo,
           fecha: formData.date,
           cliente: formData.clientCompany || formData.clientName || 'Cliente',
           atencion: formData.clientName,
@@ -420,7 +423,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
                     setFormData(p);
                   }}
                   className={`p-2.5 rounded-lg border text-xs cursor-pointer transition flex items-center justify-between ${
-                    String(formData.correlativo) === String(p.correlativo)
+                    formData.correlativo === p.correlativo
                       ? 'border-emerald-500 bg-emerald-50/60 font-semibold'
                       : 'border-slate-200 hover:bg-slate-50'
                   }`}
@@ -450,9 +453,9 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
             <div className="flex items-center gap-1.5">
               <span className="text-slate-400 font-semibold text-[11px]">N°</span>
               <input
-                type="text"
+                type="number"
                 value={formData.correlativo}
-                onChange={(e) => handleFieldChange('correlativo', e.target.value)}
+                onChange={(e) => handleFieldChange('correlativo', Number(e.target.value) || 0)}
                 className="w-20 p-1 bg-emerald-50 border border-emerald-300 font-mono font-bold text-center text-emerald-800 rounded-md focus:outline-none"
               />
             </div>
@@ -771,7 +774,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
 
           </div>
 
-          {/* CONDICIONES COMERCIALES Y GARANTÍA (EDITABLE Y CON FORMATO INSTITUCIONAL) */}
+          {/* CONDICIONES COMERCIALES Y GARANTÍA */}
           <div className="mt-8 pt-4 border-t border-slate-200 text-[11px] text-slate-600 space-y-2">
             <span className="font-bold uppercase tracking-wider text-slate-900 block text-[10px]">
               CONDICIONES COMERCIALES Y GARANTÍA
