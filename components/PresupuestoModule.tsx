@@ -18,10 +18,15 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyAYhe9xRCAh1cE
 
 const DEFAULT_CONDITIONS = `CONDICIONES COMERCIALES Y GARANTÍA
 - Forma de Pago: 50% de anticipo para iniciar los trabajos y respaldos. 50% contra entrega de la plataforma actualizada y probada.
-- Plazo de Ejecución: 2 a 4 días hábiles desde la recepción del material completo (textos, logos, fotos) y los accesos solicitados.
+- Plazo de Ejecución: 2 a 4 días hábiles desde la recepción del material completo (textos, fotos) y los accesos solicitados.
 - Garantía de Estabilidad (90 Días): PaginasPro.cl incluye una garantía técnica de 3 meses que cubre la estabilidad de la carga web y correcta visualización de los elementos entregados.`;
 
 const PRESET_SERVICES = [
+  {
+    title: 'Plan Agenda Pro (Psicología) + Botón de Pagos',
+    description: 'Diseño UX/UI responsivo, integración de agenda interactiva Cal.com sincronizada con Google Calendar y pasarela de pago MercadoPago/Webpay.',
+    netAmount: 70000,
+  },
   {
     title: 'Desarrollo Sitio Web Pro + Agenda Digital (Cal.com)',
     description: 'Diseño UX/UI responsivo, optimización SEO de velocidad, SSL y agenda interactiva sincronizada con Google Calendar.',
@@ -48,19 +53,9 @@ const PRESET_SERVICES = [
     netAmount: 100000,
   },
   {
-    title: 'Portal Inmobiliario Avanzado (Hasta 50 Propiedades)',
-    description: 'Arquitectura para catálogo denso, filtros interactivos, CDN multimedia para 500+ fotos y botones directos.',
-    netAmount: 280000,
-  },
-  {
     title: 'Portal Web Catálogo Automotriz / Alta Gama',
     description: 'Vitrina digital profesional mobile-first con ficha técnica por vehículo, galería HD, video recorrido y cotización a WhatsApp.',
     netAmount: 100000,
-  },
-  {
-    title: 'Módulo de Gestión Vía Aplicación Móvil (iOS, Android, Web)',
-    description: 'Panel de control autogestionable para subir, editar o eliminar productos/propiedades desde el celular en vivo.',
-    netAmount: 50000,
   },
   {
     title: 'Web Centro Médico + Integración Consultorio.me + Tienda',
@@ -76,11 +71,6 @@ const PRESET_SERVICES = [
     title: 'Producción Audiovisual & Creación de Contenido para Redes',
     description: '1 jornada mensual de rodaje/fotos en terreno, edición de Reels/TikToks dinámicos 4K y publicación en redes.',
     netAmount: 250000,
-  },
-  {
-    title: 'Estrategia Integral Digital 360° (Web + Redes + Ads + Comisión)',
-    description: 'Producción audiovisual mensual + gestión de Meta Ads + catálogo web siempre al día + comisión por venta ($50.000).',
-    netAmount: 300000,
   },
 ];
 
@@ -148,7 +138,6 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
     }
   }, [activePresupuesto]);
 
-  // Cargar Historial desde Google Sheets
   const fetchPresupuestosFromSheets = useCallback(async () => {
     setIsSyncingHistorial(true);
     try {
@@ -159,7 +148,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
       try {
         data = JSON.parse(text);
       } catch (parseErr) {
-        console.error('Respuesta de Sheets no es JSON:', text);
+        console.error('Error al parsear JSON de Google Sheets:', text);
         return;
       }
 
@@ -220,7 +209,6 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
     fetchPresupuestosFromSheets();
   }, [fetchPresupuestosFromSheets]);
 
-  // Cálculos Financieros
   const financials = calculateBudgetFinancials(
     formData.items || [],
     formData.appliesIva,
@@ -255,7 +243,6 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
     setFormData({ ...formData, items: updatedItems });
   };
 
-  // Crear Nuevo Presupuesto con Correlativo Dinámico
   const handleCreateNewPresupuesto = () => {
     let nextNum = 228;
     if (presupuestos.length > 0) {
@@ -301,7 +288,6 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
     setActivePresupuesto(newPpto);
   };
 
-  // Guardar en Google Sheets
   const handleSaveAndSync = async () => {
     setIsSaving(true);
     setSaveSuccess(false);
@@ -352,13 +338,16 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
     window.print();
   };
 
+  const hasNicFee = Boolean(formData.nicChileFee && formData.nicChileFee > 0);
+  const hasAnticipo = financials.anticipo50 > 0;
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start font-sans">
       
       {/* PANEL IZQUIERDO: EDITOR Y HISTORIAL */}
       <div className="no-print lg:col-span-5 space-y-5 text-xs">
         
-        {/* Historial de Presupuestos (Sincronizado con Sheets) */}
+        {/* Historial de Presupuestos */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -483,7 +472,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
             </div>
           </div>
 
-          {/* Plantillas Rápidas Completa */}
+          {/* Plantillas Rápidas */}
           <div>
             <span className="text-[11px] font-bold text-slate-500 block mb-1.5">Insertar Plantilla Rápida de Servicio:</span>
             <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1 bg-slate-50 rounded-lg border border-slate-200">
@@ -572,7 +561,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
               <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
                 <input
                   type="checkbox"
-                  checked={Boolean(formData.nicChileFee && formData.nicChileFee > 0)}
+                  checked={hasNicFee}
                   onChange={(e) => handleFieldChange('nicChileFee', e.target.checked ? 9990 : 0)}
                   className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
                 />
@@ -581,7 +570,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
             </div>
           </div>
 
-          {/* Editor de Condiciones Comerciales y Garantía */}
+          {/* Editor de Condiciones Comerciales */}
           <div>
             <label className="font-bold text-slate-800 block mb-1">Condiciones Comerciales y Garantía (Editable)</label>
             <textarea
@@ -624,7 +613,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
 
       </div>
 
-      {/* DERECHA: HOJA PREVIEW OFICIAL (DOCUMENTO A IMPRIMIR) */}
+      {/* DERECHA: HOJA PREVIEW OFICIAL */}
       <div className="lg:col-span-7 flex justify-center">
         
         <div className="print-page bg-white text-slate-900 border border-slate-200 shadow-2xl rounded-2xl p-8 sm:p-12 w-full max-w-[800px] font-sans print:p-0 print:border-none print:shadow-none print:max-w-none">
@@ -645,7 +634,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
             </div>
           </div>
 
-          {/* DATOS CLIENTE Y CONTACTO COMERCIAL */}
+          {/* DATOS CLIENTE Y CONTACTO */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-6 border-b border-slate-200 text-xs">
             
             <div className="space-y-2">
@@ -736,10 +725,15 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
                 <span className="font-mono font-bold text-slate-900">{formatCLP(financials.totalNet)}</span>
               </div>
 
-              {formData.appliesIva && (
+              {formData.appliesIva ? (
                 <div className="flex justify-between py-1 text-slate-600 font-medium">
                   <span>IVA (19%):</span>
                   <span className="font-mono font-bold text-slate-900">{formatCLP(financials.ivaAmount)}</span>
+                </div>
+              ) : (
+                <div className="flex justify-between py-1 text-slate-400 italic text-[11px]">
+                  <span>IVA (19%):</span>
+                  <span>Sin IVA</span>
                 </div>
               )}
 
@@ -748,18 +742,27 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
                 <span className="font-mono text-base text-emerald-700">{formatCLP(financials.totalAmount)}</span>
               </div>
 
-              {formData.appliesIva && (
+              {/* DESGLOSE INDEPENDIENTE DE ANTICIPO Y DOMINIO NIC CHILE */}
+              {(hasAnticipo || hasNicFee) && (
                 <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200 text-[11px] space-y-1 mt-2">
-                  <div className="flex justify-between text-emerald-900 font-semibold">
-                    <span>50% Anticipo para Iniciar:</span>
-                    <span className="font-mono font-bold">{formatCLP(financials.anticipo50)}</span>
-                  </div>
+                  {hasAnticipo && (
+                    <div className="flex justify-between text-emerald-900 font-semibold">
+                      <span>50% Anticipo para Iniciar:</span>
+                      <span className="font-mono font-bold">{formatCLP(financials.anticipo50)}</span>
+                    </div>
+                  )}
                   
-                  {/* Desglose condicional de Dominio NIC Chile */}
-                  {Boolean(formData.nicChileFee && formData.nicChileFee > 0) && (
+                  {hasNicFee && (
                     <div className="flex justify-between text-emerald-800 border-t border-emerald-200/60 pt-1 mt-1">
                       <span>Arancel Dominio NIC Chile (.cl):</span>
                       <span className="font-mono font-semibold">$9.990</span>
+                    </div>
+                  )}
+
+                  {hasNicFee && hasAnticipo && (
+                    <div className="flex justify-between text-emerald-950 font-extrabold border-t border-emerald-300 pt-1 mt-1">
+                      <span>TOTAL A PAGAR AL INICIO:</span>
+                      <span className="font-mono">{formatCLP(financials.anticipo50 + 9990)}</span>
                     </div>
                   )}
                 </div>
