@@ -1,43 +1,28 @@
-/**
- * Chilean Peso (CLP) currency formatter
- */
-export function formatCLP(amount: number): string {
-  return new Intl.NumberFormat('es-CL', {
-    style: 'currency',
-    currency: 'CLP',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
+// lib/formatters.ts
 
-/**
- * Calculates financial breakdown for a budget quote
- */
-export function calculateBudgetFinancials(
-  items: { netAmount: number }[],
-  appliesIva: boolean = true,
-  nicChileFee: number = 9990
-) {
-  const totalNet = items.reduce((acc, item) => acc + (Number(item.netAmount) || 0), 0);
-  const ivaAmount = appliesIva ? Math.round(totalNet * 0.19) : 0;
-  const totalAmount = totalNet + ivaAmount;
-  const anticipo50 = Math.round(totalAmount / 2);
-  const totalPayToStart = anticipo50 + nicChileFee;
+export const formatCLP = (amount: number): string => {
+  if (amount === undefined || amount === null) return '$0';
+  return `$ ${Math.round(amount).toLocaleString('es-CL')}`;
+};
 
-  return {
-    totalNet,
-    ivaAmount,
-    totalAmount,
-    anticipo50,
-    nicChileFee,
-    totalPayToStart,
-  };
-}
+// Formateo exacto de fecha sin desfase de zona horaria (YYYY-MM-DD -> DD-MM-YYYY)
+export const formatDateCL = (dateStr: string): string => {
+  if (!dateStr) return '';
+  
+  // Extraer solo la parte YYYY-MM-DD
+  const cleanStr = String(dateStr).split('T')[0].trim();
+  const parts = cleanStr.split('-');
+  
+  if (parts.length === 3) {
+    const [year, month, day] = parts;
+    return `${day.padStart(2, '0')}-${month.padStart(2, '0')}-${year}`;
+  }
+  
+  return cleanStr;
+};
 
-/**
- * Calculate warranty end date (+90 days from start)
- */
-export function calculateWarrantyDates(startDateStr?: string) {
-  const start = startDateStr ? new Date(startDateStr) : new Date();
+export const calculateWarrantyDates = (startDate?: string) => {
+  const start = startDate ? new Date(startDate + 'T12:00:00') : new Date();
   const end = new Date(start);
   end.setDate(end.getDate() + 90);
 
@@ -45,18 +30,23 @@ export function calculateWarrantyDates(startDateStr?: string) {
     warrantyStartDate: start.toISOString().split('T')[0],
     warrantyEndDate: end.toISOString().split('T')[0],
   };
-}
+};
 
-/**
- * Format ISO date string to Chilean friendly format
- */
-export function formatDateCL(dateStr: string): string {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return dateStr;
-  return new Intl.DateTimeFormat('es-CL', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(date);
-}
+export const calculateBudgetFinancials = (
+  items: { netAmount: number }[],
+  appliesIva: boolean,
+  nicChileFee: number = 0
+) => {
+  const totalNet = (items || []).reduce((sum, item) => sum + (Number(item.netAmount) || 0), 0);
+  const ivaAmount = appliesIva ? Math.round(totalNet * 0.19) : 0;
+  const totalAmount = totalNet + ivaAmount;
+  const anticipo50 = Math.round(totalAmount / 2);
+
+  return {
+    totalNet,
+    ivaAmount,
+    totalAmount,
+    anticipo50,
+    totalPayToStart: anticipo50 + (nicChileFee || 0),
+  };
+};
