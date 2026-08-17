@@ -9,14 +9,10 @@ import {
   Plus, 
   Trash2, 
   Key, 
-  Globe, 
   Mail, 
   ShieldCheck, 
   ExternalLink, 
-  Calendar,
-  FileCheck2,
-  Share2,
-  FileText
+  FileCheck2
 } from 'lucide-react';
 
 interface InformeEntregaModuleProps {
@@ -67,7 +63,6 @@ const DEFAULT_INFORME_FALLBACK: InformeEntrega = {
   ],
   corporateEmails: ['contacto@paginaspro.cl'],
   deliverablesChecklist: DEFAULT_DELIVERABLES,
-  status: 'borrador',
 };
 
 let credCounter = 0;
@@ -85,7 +80,6 @@ export const InformeEntregaModule: React.FC<InformeEntregaModuleProps> = ({
 }) => {
   const [newEmailInput, setNewEmailInput] = useState('');
 
-  // Asegurar que activeInforme siempre tenga una estructura completa válida
   const currentInforme: InformeEntrega = activeInforme
     ? {
         ...DEFAULT_INFORME_FALLBACK,
@@ -102,13 +96,11 @@ export const InformeEntregaModule: React.FC<InformeEntregaModuleProps> = ({
     }
   }, [activeInforme, setActiveInforme]);
 
-  // Modificadores de Estado
   const updateCurrentInforme = (updatedFields: Partial<InformeEntrega>) => {
     const newDoc = { ...currentInforme, ...updatedFields };
     setActiveInforme(newDoc);
   };
 
-  // Recalcular 90 días de garantía
   const handleStartDateChange = (dateStr: string) => {
     const dates = calculateWarrantyDates(dateStr);
     updateCurrentInforme({
@@ -118,7 +110,6 @@ export const InformeEntregaModule: React.FC<InformeEntregaModuleProps> = ({
     });
   };
 
-  // Credenciales
   const addCredential = () => {
     const newCred: CredentialItem = {
       id: createCredId(),
@@ -144,7 +135,6 @@ export const InformeEntregaModule: React.FC<InformeEntregaModuleProps> = ({
     });
   };
 
-  // Correos
   const addCorporateEmail = () => {
     if (!newEmailInput.trim()) return;
     updateCurrentInforme({
@@ -159,7 +149,6 @@ export const InformeEntregaModule: React.FC<InformeEntregaModuleProps> = ({
     });
   };
 
-  // Checklist
   const toggleDeliverable = (id: string) => {
     updateCurrentInforme({
       deliverablesChecklist: currentInforme.deliverablesChecklist.map(d =>
