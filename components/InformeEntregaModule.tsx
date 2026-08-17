@@ -25,7 +25,6 @@ interface InformeEntregaModuleProps {
 
 const DEFAULT_COMPANY = COMPANY_DATA || {
   nombre: 'PáginasPro.cl',
-  empresa: 'Vango SpA PáginasPro',
   rut: '78.406.599-5',
   direccion: 'Colón 352 Of 318, La Serena',
   telefono: '+56 9 9683 1269',
@@ -453,7 +452,7 @@ export const InformeEntregaModule: React.FC<InformeEntregaModuleProps> = ({
                     PáginasPro.cl
                   </span>
                   <span className="text-xs font-bold text-slate-500 uppercase">
-                    {DEFAULT_COMPANY.empresa}
+                    {(DEFAULT_COMPANY as any).empresa || (DEFAULT_COMPANY as any).nombre || 'Vango SpA PáginasPro'}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-600">{DEFAULT_COMPANY.direccion}</p>
