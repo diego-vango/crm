@@ -63,6 +63,7 @@ const DEFAULT_INFORME_FALLBACK: InformeEntrega = {
   ],
   corporateEmails: ['contacto@paginaspro.cl'],
   deliverablesChecklist: DEFAULT_DELIVERABLES,
+  notes: 'Entrega conforme de plataforma web con garantía técnica de 90 días.',
 };
 
 let credCounter = 0;
@@ -87,6 +88,7 @@ export const InformeEntregaModule: React.FC<InformeEntregaModuleProps> = ({
         credentials: activeInforme.credentials || DEFAULT_INFORME_FALLBACK.credentials,
         corporateEmails: activeInforme.corporateEmails || DEFAULT_INFORME_FALLBACK.corporateEmails,
         deliverablesChecklist: activeInforme.deliverablesChecklist || DEFAULT_DELIVERABLES,
+        notes: activeInforme.notes || DEFAULT_INFORME_FALLBACK.notes,
       }
     : DEFAULT_INFORME_FALLBACK;
 
