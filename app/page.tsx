@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { PipelineModule } from '@/components/PipelineModule';
 import { PresupuestoModule } from '@/components/PresupuestoModule';
-import { InformeEntregaModule } from '@/components/InformeEntregaModule';
+import { InformeTecnicoA4Module } from '@/components/InformeTecnicoA4Module';
 import { CsatModule } from '@/components/CsatModule';
 import { NewLeadModal } from '@/components/NewLeadModal';
 import { 
@@ -289,48 +289,7 @@ export default function CrmDashboardPage() {
   };
 
   const handleCreateNewInforme = () => {
-    const dates = calculateWarrantyDates();
-    const newInf: InformeEntrega = {
-      id: createPageInfId(),
-      clientName: 'Representante Cliente',
-      companyName: 'Nueva Empresa SpA',
-      webUrl: 'https://nuevaempresa.cl',
-      deliveryDate: dates.warrantyStartDate,
-      warrantyStartDate: dates.warrantyStartDate,
-      warrantyEndDate: dates.warrantyEndDate,
-      credentials: [
-        {
-          id: createPageItemId(),
-          title: 'Administrador Panel Web',
-          url: 'https://nuevaempresa.cl/admin',
-          username: 'admin_empresa',
-          passHint: 'Enviada por canal seguro',
-        },
-      ],
-      corporateEmails: ['contacto@nuevaempresa.cl', 'ventas@nuevaempresa.cl'],
-      deliverablesChecklist: [
-        { id: 'd1', label: 'Certificado de Seguridad SSL HTTPS Activo', completed: true },
-        { id: 'd2', label: 'Diseño 100% Responsivo Celulares y Tablets', completed: true },
-        { id: 'd3', label: 'Botones WhatsApp y Formularios Probados', completed: true },
-        { id: 'd4', label: 'Optimización de Velocidad de Carga', completed: true },
-        { id: 'd5', label: 'Casillas de Correo Probadas', completed: true },
-      ],
-      notes: 'Recepción conforme con 90 días de garantía técnica activa.',
-    };
-
-    setInformes([newInf, ...informes]);
-    setActiveInforme(newInf);
     setActiveTab('informes');
-  };
-
-  const handleSaveInforme = (inf: InformeEntrega) => {
-    setInformes(prev => {
-      const exists = prev.some(item => item.id === inf.id);
-      if (exists) {
-        return prev.map(item => item.id === inf.id ? inf : item);
-      }
-      return [inf, ...prev];
-    });
   };
 
   const csatAvg = surveys.length > 0
@@ -454,13 +413,7 @@ export default function CrmDashboardPage() {
           )}
 
           {activeTab === 'informes' && (
-            <InformeEntregaModule
-              informes={informes}
-              setInformes={setInformes}
-              activeInforme={activeInforme}
-              setActiveInforme={setActiveInforme}
-              onSaveInforme={handleSaveInforme}
-            />
+            <InformeTecnicoA4Module />
           )}
 
           {activeTab === 'csat' && (
