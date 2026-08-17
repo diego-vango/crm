@@ -11,7 +11,9 @@ import {
   FileText, 
   RefreshCw,
   Save,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Building2,
+  User
 } from 'lucide-react';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyAYhe9xRCAh1cEjlWq7fioCmOJfcJqwGrOkZFSTGczZlVBr0vr4eqrUeMGQ2yjq899/exec';
@@ -83,13 +85,6 @@ const parseCLPAmount = (val: any): number => {
   return parseInt(cleaned, 10) || 0;
 };
 
-const parseCorrelativoNumber = (val: any): number => {
-  if (!val) return 228;
-  if (typeof val === 'number') return val;
-  const match = String(val).match(/\d+/);
-  return match ? parseInt(match[0], 10) : 228;
-};
-
 const cleanIsoDate = (d: any): string => {
   if (!d) return new Date().toISOString().split('T')[0];
   return String(d).split('T')[0];
@@ -108,6 +103,10 @@ function createItemId(): string {
   return `item-${itemIdCounter}-${Date.now().toString(36)}`;
 }
 
+interface ExtendedPresupuesto extends Presupuesto {
+  bankAccountType?: 'vango' | 'personal';
+}
+
 interface PresupuestoModuleProps {
   presupuestos: Presupuesto[];
   setPresupuestos: React.Dispatch<React.SetStateAction<Presupuesto[]>>;
@@ -123,7 +122,10 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
   setActivePresupuesto,
   onSavePresupuesto,
 }) => {
-  const [formData, setFormData] = useState<Presupuesto>(activePresupuesto);
+  const [formData, setFormData] = useState<ExtendedPresupuesto>({
+    ...activePresupuesto,
+    bankAccountType: (activePresupuesto as ExtendedPresupuesto).bankAccountType || 'vango'
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncingHistorial, setIsSyncingHistorial] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -133,7 +135,8 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
       setFormData({
         ...activePresupuesto,
         notes: activePresupuesto.notes || DEFAULT_CONDITIONS,
-        nicChileFee: activePresupuesto.nicChileFee !== undefined ? activePresupuesto.nicChileFee : 0
+        nicChileFee: activePresupuesto.nicChileFee !== undefined ? activePresupuesto.nicChileFee : 0,
+        bankAccountType: (activePresupuesto as ExtendedPresupuesto).bankAccountType || 'vango'
       });
     }
   }, [activePresupuesto]);
@@ -215,7 +218,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
     formData.nicChileFee || 0
   );
 
-  const handleFieldChange = (field: keyof Presupuesto, value: any) => {
+  const handleFieldChange = (field: keyof ExtendedPresupuesto, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -257,7 +260,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
       nextNum = maxDigits + 1;
     }
 
-    const newPpto: Presupuesto = {
+    const newPpto: ExtendedPresupuesto = {
       id: `ppto-${nextNum}`,
       correlativo: nextNum,
       clientName: '',
@@ -281,6 +284,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
       totalAmount: 0,
       anticipo50: 0,
       nicChileFee: 0,
+      bankAccountType: 'vango',
       status: 'borrador'
     };
 
@@ -340,6 +344,7 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
 
   const hasNicFee = Boolean(formData.nicChileFee && formData.nicChileFee > 0);
   const hasAnticipo = financials.anticipo50 > 0;
+  const isPersonalBank = formData.bankAccountType === 'personal';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start font-sans">
@@ -386,7 +391,10 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
                   key={p.id || String(p.correlativo)}
                   onClick={() => {
                     setActivePresupuesto(p);
-                    setFormData(p);
+                    setFormData({
+                      ...p,
+                      bankAccountType: (p as ExtendedPresupuesto).bankAccountType || 'vango'
+                    });
                   }}
                   className={`p-2.5 rounded-lg border text-xs cursor-pointer transition flex items-center justify-between ${
                     String(formData.correlativo) === String(p.correlativo)
@@ -543,8 +551,43 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
             ))}
           </div>
 
-          {/* Checkboxes de Opciones Financieras */}
+          {/* Selector de Cuenta Bancaria y Opciones Financieras */}
           <div className="space-y-2">
+            
+            {/* SELECTOR DE DATOS BANCARIOS */}
+            <div className="bg-slate-100 p-3 rounded-xl border border-slate-200 space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-700 block">
+                Cuenta Bancaria de Pago (Destino):
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleFieldChange('bankAccountType', 'vango')}
+                  className={`p-2 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1.5 transition ${
+                    !isPersonalBank
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Vango SpA (Empresa)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleFieldChange('bankAccountType', 'personal')}
+                  className={`p-2 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1.5 transition ${
+                    isPersonalBank
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Diego V. (Personal)</span>
+                </button>
+              </div>
+            </div>
+
             <div className="bg-slate-100 p-3 rounded-xl border border-slate-200">
               <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-800">
                 <input
@@ -706,16 +749,29 @@ export const PresupuestoModule: React.FC<PresupuestoModuleProps> = ({
           {/* DATOS BANCARIOS Y RESUMEN FINANCIERO */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-slate-200 text-xs">
             
-            {/* DATOS BANCARIOS */}
+            {/* DATOS BANCARIOS DINÁMICOS */}
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
               <span className="font-bold text-slate-900 uppercase text-[10px] tracking-wider block mb-1">
                 Datos Bancarios de Pago
               </span>
-              <p className="font-bold text-slate-900">PáginasPro.cl</p>
-              <p className="text-slate-600">Vango SpA PáginasPro</p>
-              <p className="font-mono font-semibold text-slate-800">RUT: 78.406.599-5</p>
-              <p className="text-slate-800">Banco Scotiabank</p>
-              <p className="font-mono font-bold text-slate-900">Cuenta N° 993884572</p>
+
+              {isPersonalBank ? (
+                <>
+                  <p className="font-bold text-slate-900">DIEGO ELIAS VALDERRAMA</p>
+                  <p className="font-mono font-semibold text-slate-800">RUT: 17.508.257-3</p>
+                  <p className="text-slate-800">Banco Scotiabank (Cta. Corriente)</p>
+                  <p className="font-mono font-bold text-slate-900">Cuenta N° 2652359064</p>
+                  <p className="text-slate-500 font-mono text-[10px]">diego@paginaspro.cl</p>
+                </>
+              ) : (
+                <>
+                  <p className="font-bold text-slate-900">PáginasPro.cl</p>
+                  <p className="text-slate-600">Vango SpA PáginasPro</p>
+                  <p className="font-mono font-semibold text-slate-800">RUT: 78.406.599-5</p>
+                  <p className="text-slate-800">Banco Scotiabank</p>
+                  <p className="font-mono font-bold text-slate-900">Cuenta N° 993884572</p>
+                </>
+              )}
             </div>
 
             {/* RESUMEN DE TOTALES */}
