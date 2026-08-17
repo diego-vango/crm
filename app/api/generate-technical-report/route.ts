@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 
-// Requisito obligatorio para desplegar API Routes de Next.js en Cloudflare Pages
+// Requisito obligatorio para desplegar API Routes en Cloudflare Pages
 export const runtime = 'edge';
 
 export async function POST(req: Request) {
   try {
     const { clientName, companyName, projectName, rawNotes, apiKey } = await req.json();
 
-    // Prioriza la clave enviada en el body o la variable de entorno GEMINI_API_KEY de Cloudflare
+    // Prioriza la clave enviada o la variable de entorno GEMINI_API_KEY de Cloudflare
     const keyToUse = apiKey || process.env.GEMINI_API_KEY;
 
     if (!keyToUse) {
