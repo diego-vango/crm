@@ -126,7 +126,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
     }
   }, [selectedLead]);
 
-  // Carga de Leads desde Sheets
+  // Carga de Leads desde Sheets (Ordenados más recientes primero)
   const fetchLeadsFromSheets = useCallback(async () => {
     setIsSyncing(true);
     try {
@@ -162,6 +162,13 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
             lastActivity: item['Próxima Acción'] ? `Próxima acción: ${cleanText(item['Próxima Acción'])}` : `Registrado el ${rawDate}`,
             notes: notesText
           };
+        });
+
+        // Ordenamiento explícito: Más recientes arriba
+        mappedLeads.sort((a, b) => {
+          const dateComp = (b.createdAt || '').localeCompare(a.createdAt || '');
+          if (dateComp !== 0) return dateComp;
+          return b.id.localeCompare(a.id);
         });
 
         setLeads(mappedLeads);
@@ -477,11 +484,19 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
 
       </div>
 
-      {/* TABLERO KANBAN CON BOTONES DE ACCIÓN DIRECTA */}
+      {/* TABLERO KANBAN CON BOTONES PERFECTAMENTE DISTRIBUIDOS */}
       {viewMode === 'kanban' ? (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto pb-4">
           {STAGES.map((stage) => {
-            const stageLeads = filteredLeads.filter(l => l.stage === stage.key);
+            // Filtrar y ordenar por fecha descendente (más nuevos arriba)
+            const stageLeads = filteredLeads
+              .filter(l => l.stage === stage.key)
+              .sort((a, b) => {
+                const dateComp = (b.createdAt || '').localeCompare(a.createdAt || '');
+                if (dateComp !== 0) return dateComp;
+                return b.id.localeCompare(a.id);
+              });
+
             const stageTotal = stageLeads.reduce((sum, l) => sum + (l.value || 0), 0);
             const isTargetDropStage = dragOverStage === stage.key;
 
@@ -548,64 +563,64 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
                         </div>
 
                         <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-100">
-                          <span className="text-slate-500 truncate max-w-[140px]">
+                          <span className="text-slate-500 truncate max-w-[130px]">
                             {lead.lastActivity}
                           </span>
                           <span className="font-mono">{lead.createdAt}</span>
                         </div>
 
-                        {/* BOTONES DE ACCIÓN RÁPIDA: WHATSAPP | CORREO | COTIZAR */}
-                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-1.5">
+                        {/* TRES BOTONES CON PONDERACIÓN 33% (flex-1 min-w-0) PARA EVITAR DESBORDES */}
+                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
                           
-                          {/* BOTÓN WHATSAPP */}
+                          {/* WHATSAPP */}
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleWhatsAppClick(lead);
                             }}
-                            className="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-[10px] py-1.5 px-2 rounded-lg border border-emerald-200 flex items-center justify-center gap-1 transition cursor-pointer"
+                            className="flex-1 min-w-0 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-[9.5px] py-1.5 px-1 rounded-lg border border-emerald-200 flex items-center justify-center gap-1 transition cursor-pointer"
                             title="Abrir chat en WhatsApp"
                           >
-                            <MessageCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            <span>WhatsApp</span>
+                            <MessageCircle className="w-3 h-3 text-emerald-600 shrink-0" />
+                            <span className="truncate">WhatsApp</span>
                           </button>
 
-                          {/* BOTÓN CORREO */}
+                          {/* CORREO */}
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               handleEmailClick(lead);
                             }}
-                            className="flex-1 bg-sky-50 hover:bg-sky-100 text-sky-800 font-extrabold text-[10px] py-1.5 px-2 rounded-lg border border-sky-200 flex items-center justify-center gap-1 transition cursor-pointer"
+                            className="flex-1 min-w-0 bg-sky-50 hover:bg-sky-100 text-sky-800 font-extrabold text-[9.5px] py-1.5 px-1 rounded-lg border border-sky-200 flex items-center justify-center gap-1 transition cursor-pointer"
                             title={lead.email ? `Redactar a ${lead.email}` : "Enviar correo"}
                           >
                             {copiedEmailId === lead.id ? (
                               <>
-                                <Check className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                                <span>¡Copiado!</span>
+                                <Check className="w-3 h-3 text-sky-600 shrink-0" />
+                                <span className="truncate">¡Copiado!</span>
                               </>
                             ) : (
                               <>
-                                <Mail className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                                <span>Correo</span>
+                                <Mail className="w-3 h-3 text-sky-600 shrink-0" />
+                                <span className="truncate">Correo</span>
                               </>
                             )}
                           </button>
 
-                          {/* BOTÓN COTIZAR */}
+                          {/* COTIZAR */}
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               onConvertLeadToQuote(lead);
                             }}
-                            className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-[10px] py-1.5 px-2 rounded-lg border border-slate-200 flex items-center justify-center gap-1 transition cursor-pointer"
+                            className="flex-1 min-w-0 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-[9.5px] py-1.5 px-1 rounded-lg border border-slate-200 flex items-center justify-center gap-1 transition cursor-pointer"
                             title="Generar Presupuesto PDF"
                           >
-                            <FileText className="w-3.5 h-3.5 text-slate-600 shrink-0" />
-                            <span>Cotizar</span>
+                            <FileText className="w-3 h-3 text-slate-600 shrink-0" />
+                            <span className="truncate">Cotizar</span>
                           </button>
 
                         </div>
@@ -620,7 +635,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
           })}
         </div>
       ) : (
-        /* VISTA TABLA */
+        /* VISTA TABLA (También ordenada más recientes arriba) */
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
@@ -642,60 +657,62 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
                     </td>
                   </tr>
                 ) : (
-                  filteredLeads.map((lead) => (
-                    <tr key={lead.id} className="hover:bg-slate-50 transition">
-                      <td className="p-3">
-                        <div className="font-bold text-slate-900 text-sm">{lead.name}</div>
-                        <div className="text-slate-400 text-[10px] font-mono">{lead.createdAt}</div>
-                      </td>
-                      <td className="p-3 font-mono">
-                        <div className="text-slate-800 font-semibold">{lead.phone || 'Sin teléfono'}</div>
-                        <div className="text-slate-500 text-[11px]">{lead.email || 'Sin correo'}</div>
-                      </td>
-                      <td className="p-3 font-medium text-slate-700 max-w-xs">{lead.serviceInterest}</td>
-                      <td className="p-3 font-bold font-mono text-slate-900">{formatCLP(lead.value)}</td>
-                      <td className="p-3">
-                        <select
-                          value={lead.stage}
-                          onChange={(e) => moveLeadStage(lead.id, e.target.value as LeadStage)}
-                          className="text-xs font-semibold bg-slate-100 border border-slate-300 rounded-md px-2 py-1 text-slate-800 cursor-pointer"
-                        >
-                          <option value="nuevo">Lead</option>
-                          <option value="conversacion">Contactado</option>
-                          <option value="cotizado">Cotizado</option>
-                          <option value="cerrado">Cliente</option>
-                          <option value="perdido">Perdió Interés</option>
-                        </select>
-                      </td>
-                      <td className="p-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => handleWhatsAppClick(lead)}
-                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-[10px] px-2.5 py-1 rounded-md border border-emerald-200 flex items-center gap-1 cursor-pointer"
+                  filteredLeads
+                    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+                    .map((lead) => (
+                      <tr key={lead.id} className="hover:bg-slate-50 transition">
+                        <td className="p-3">
+                          <div className="font-bold text-slate-900 text-sm">{lead.name}</div>
+                          <div className="text-slate-400 text-[10px] font-mono">{lead.createdAt}</div>
+                        </td>
+                        <td className="p-3 font-mono">
+                          <div className="text-slate-800 font-semibold">{lead.phone || 'Sin teléfono'}</div>
+                          <div className="text-slate-500 text-[11px]">{lead.email || 'Sin correo'}</div>
+                        </td>
+                        <td className="p-3 font-medium text-slate-700 max-w-xs">{lead.serviceInterest}</td>
+                        <td className="p-3 font-bold font-mono text-slate-900">{formatCLP(lead.value)}</td>
+                        <td className="p-3">
+                          <select
+                            value={lead.stage}
+                            onChange={(e) => moveLeadStage(lead.id, e.target.value as LeadStage)}
+                            className="text-xs font-semibold bg-slate-100 border border-slate-300 rounded-md px-2 py-1 text-slate-800 cursor-pointer"
                           >
-                            <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>WhatsApp</span>
-                          </button>
+                            <option value="nuevo">Lead</option>
+                            <option value="conversacion">Contactado</option>
+                            <option value="cotizado">Cotizado</option>
+                            <option value="cerrado">Cliente</option>
+                            <option value="perdido">Perdió Interés</option>
+                          </select>
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleWhatsAppClick(lead)}
+                              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-[10px] px-2.5 py-1 rounded-md border border-emerald-200 flex items-center gap-1 cursor-pointer"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>WhatsApp</span>
+                            </button>
 
-                          <button
-                            onClick={() => handleEmailClick(lead)}
-                            className="bg-sky-50 hover:bg-sky-100 text-sky-800 font-extrabold text-[10px] px-2.5 py-1 rounded-md border border-sky-200 flex items-center gap-1 cursor-pointer"
-                          >
-                            <Mail className="w-3.5 h-3.5 text-sky-600" />
-                            <span>Correo</span>
-                          </button>
+                            <button
+                              onClick={() => handleEmailClick(lead)}
+                              className="bg-sky-50 hover:bg-sky-100 text-sky-800 font-extrabold text-[10px] px-2.5 py-1 rounded-md border border-sky-200 flex items-center gap-1 cursor-pointer"
+                            >
+                              <Mail className="w-3.5 h-3.5 text-sky-600" />
+                              <span>Correo</span>
+                            </button>
 
-                          <button
-                            onClick={() => onConvertLeadToQuote(lead)}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-2.5 py-1 rounded-md inline-flex items-center gap-1 cursor-pointer"
-                          >
-                            <FileText className="w-3.5 h-3.5" />
-                            <span>Cotizar</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                            <button
+                              onClick={() => onConvertLeadToQuote(lead)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-2.5 py-1 rounded-md inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              <span>Cotizar</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
                 )}
               </tbody>
             </table>
