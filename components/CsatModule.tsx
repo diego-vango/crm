@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SurveyResponse } from '@/types/crm';
 import { 
   Star, 
@@ -9,14 +9,15 @@ import {
   Users, 
   Send, 
   CheckCircle, 
-  Share2, 
   Copy, 
   ExternalLink,
   ThumbsUp,
   Sparkles,
-  BarChart2,
-  Lock
+  RefreshCw
 } from 'lucide-react';
+
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyAYhe9xRCAh1cEjlWq7fioCmOJfcJqwGrOkZFSTGczZlVBr0vr4eqrUeMGQ2yjq899/exec';
+const PUBLIC_SURVEY_URL = 'https://paginaspro.cl/tuexperiencia';
 
 interface CsatModuleProps {
   surveys: SurveyResponse[];
@@ -32,8 +33,10 @@ function createSurveyId(): string {
 export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) => {
   const [activeSubTab, setActiveSubTab] = useState<'admin' | 'public_portal'>('admin');
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
-  // New Survey Form State for Simulator / Public Portal
+  // Formulario Portal Público / Simulador
   const [clientName, setClientName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [overallRating, setOverallRating] = useState(5);
@@ -43,31 +46,62 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
   const [comments, setComments] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  // Calculate Metrics
+  const fetchSurveysFromSheets = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${APPS_SCRIPT_URL}?type=surveys&t=${Date.now()}`, { cache: 'no-store' });
+      const data = await res.json();
+
+      if (Array.isArray(data) && data.length > 0) {
+        const mappedSurveys: SurveyResponse[] = data.map((item: any) => ({
+          id: item.id || `survey_${Math.random()}`,
+          clientName: item.clientCompany || 'Cliente',
+          companyName: item.clientCompany || 'Empresa',
+          overallRating: item.overallRating || 5,
+          usabilityRating: item.overallRating || 5,
+          attentionRating: item.overallRating || 5,
+          npsScore: item.overallRating === 5 ? 10 : 8,
+          comments: item.testimonial || item.valuedAspects || 'Sin comentario adicional.',
+          createdAt: item.timestamp || new Date().toISOString().split('T')[0],
+          verified: true
+        }));
+
+        setSurveys(mappedSurveys);
+      }
+    } catch (err) {
+      console.error('Error al cargar encuestas desde Google Sheets:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSurveysFromSheets();
+  }, []);
+
   const totalCount = surveys.length;
   const avgOverall = totalCount > 0 ? (surveys.reduce((sum, s) => sum + s.overallRating, 0) / totalCount) : 5;
   const avgUsability = totalCount > 0 ? (surveys.reduce((sum, s) => sum + s.usabilityRating, 0) / totalCount) : 5;
   const avgAttention = totalCount > 0 ? (surveys.reduce((sum, s) => sum + s.attentionRating, 0) / totalCount) : 5;
 
-  // NPS Calculation: Promoters (9-10) - Detractors (0-6)
-  const promoters = surveys.filter(s => s.npsScore >= 9).length;
-  const detractors = surveys.filter(s => s.npsScore <= 6).length;
+  const promoters = surveys.filter(s => (s.npsScore || 10) >= 9).length;
+  const detractors = surveys.filter(s => (s.npsScore || 10) <= 6).length;
   const npsValue = totalCount > 0 ? Math.round(((promoters - detractors) / totalCount) * 100) : 100;
 
   const handleCopyPublicLink = () => {
-    const url = 'https://crm.paginaspro.cl/encuesta-satisfaccion';
-    navigator.clipboard.writeText(url);
+    navigator.clipboard.writeText(PUBLIC_SURVEY_URL);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
-  const handleNewSurveySubmit = (e: React.FormEvent) => {
+  const handleNewSurveySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!clientName.trim() || !companyName.trim()) {
       alert('Por favor completa tu nombre y el de tu empresa.');
       return;
     }
 
+    setIsSending(true);
     const newEntry: SurveyResponse = {
       id: createSurveyId(),
       clientName,
@@ -81,8 +115,27 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
       verified: true,
     };
 
-    setSurveys([newEntry, ...surveys]);
-    setSubmitted(true);
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'save_survey',
+          clientName,
+          companyName,
+          rating: overallRating === 5 ? 'Excelente' : 'Buena',
+          valuedAspects: 'Rapidez, Usabilidad y Atención',
+          recommend: npsScore >= 9 ? 'De todas maneras' : 'Tal vez',
+          comments
+        })
+      });
+    } catch (err) {
+      console.error('Error al enviar encuesta a Sheets:', err);
+    } finally {
+      setIsSending(false);
+      setSurveys([newEntry, ...surveys]);
+      setSubmitted(true);
+    }
   };
 
   const resetPublicForm = () => {
@@ -97,10 +150,10 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       
       {/* Top Toggle: Admin Panel vs Public Portal Simulator */}
-      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <MessageSquareHeart className="w-5 h-5 text-emerald-600" />
           <h2 className="text-sm font-bold text-slate-900">
@@ -111,9 +164,9 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
         <div className="flex items-center gap-2">
           <button
             onClick={() => setActiveSubTab('admin')}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition ${
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
               activeSubTab === 'admin'
-                ? 'bg-slate-900 text-white shadow-sm'
+                ? 'bg-slate-900 text-white shadow-xs'
                 : 'bg-slate-100 text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -122,9 +175,9 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
 
           <button
             onClick={() => setActiveSubTab('public_portal')}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
               activeSubTab === 'public_portal'
-                ? 'bg-emerald-600 text-white shadow-sm'
+                ? 'bg-emerald-600 text-white shadow-xs'
                 : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
             }`}
           >
@@ -134,7 +187,7 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
 
           <button
             onClick={handleCopyPublicLink}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs px-3 py-1.5 rounded-lg border border-slate-300 flex items-center gap-1"
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs px-3 py-1.5 rounded-lg border border-slate-300 flex items-center gap-1 cursor-pointer"
           >
             <Copy className="w-3.5 h-3.5" />
             <span>{copiedLink ? '¡Copiado!' : 'Copiar Link Público'}</span>
@@ -149,7 +202,7 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
           {/* KPI Score Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
                 Promedio CSAT General
               </span>
@@ -167,12 +220,12 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
                 NPS (Net Promoter Score)
               </span>
               <div className="flex items-baseline gap-2 mt-2">
-                <span className="text-3xl font-black text-emerald-600">+{npsValue}</span>
+                <span className="text-3xl font-black text-emerald-600">+{npsValue}%</span>
                 <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
                   Excelente
                 </span>
@@ -182,7 +235,7 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
               </p>
             </div>
 
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
                 Usabilidad Web
               </span>
@@ -193,7 +246,7 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
               <p className="text-[11px] text-emerald-600 font-medium mt-2">Satisfacción velocidad y navegación</p>
             </div>
 
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
               <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
                 Rapidez de Atención
               </span>
@@ -207,15 +260,25 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
           </div>
 
           {/* List of Recent Client Feedbacks */}
-          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200 mb-4">
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Award className="w-4 h-4 text-emerald-600" />
                 <span>Opiniones & Evaluaciones Recibidas de Clientes</span>
               </h3>
-              <span className="text-xs font-mono text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
-                {surveys.length} Encuestas Registradas
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={fetchSurveysFromSheets}
+                  disabled={isLoading}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-1 rounded-lg flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isLoading ? 'animate-spin' : ''}`} />
+                  <span>Sincronizar</span>
+                </button>
+                <span className="text-xs font-mono text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
+                  {surveys.length} Encuestas Registradas
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -236,7 +299,7 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
                   </p>
 
                   <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 font-mono">
-                    <span className="text-emerald-700 font-bold">NPS Recomendación: {srv.npsScore}/10</span>
+                    <span className="text-emerald-700 font-bold">NPS Recomendación: {srv.npsScore || 10}/10</span>
                     <span>{srv.createdAt}</span>
                   </div>
                 </div>
@@ -252,7 +315,6 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
       {activeSubTab === 'public_portal' && (
         <div className="max-w-xl mx-auto bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
           
-          {/* Header Portal */}
           <div className="bg-slate-900 text-white p-6 text-center relative">
             <div className="inline-flex items-center justify-center p-2 bg-emerald-500 text-slate-950 font-black text-sm rounded-lg mb-2">
               PáginasPro.cl
@@ -270,11 +332,11 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
               </div>
               <h3 className="text-xl font-black text-slate-900">¡Muchas Gracias por tu Feedback!</h3>
               <p className="text-xs text-slate-600 max-w-sm mx-auto">
-                Tus respuestas han sido registradas exitosamente en el panel de calidad de PáginasPro.cl.
+                Tus respuestas han sido registradas exitosamente en Google Sheets y en el panel de calidad de PáginasPro.cl.
               </p>
               <button
                 onClick={resetPublicForm}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition cursor-pointer"
               >
                 Enviar otra respuesta de prueba
               </button>
@@ -307,7 +369,6 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
                 </div>
               </div>
 
-              {/* Star Rating 1: Overall */}
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
                 <label className="font-bold text-slate-800 block">1. ¿Qué tan satisfecho quedaste con el resultado general de la web?</label>
                 <div className="flex gap-2">
@@ -316,7 +377,7 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
                       type="button"
                       key={star}
                       onClick={() => setOverallRating(star)}
-                      className="p-1.5 text-amber-400 hover:scale-110 transition"
+                      className="p-1.5 text-amber-400 hover:scale-110 transition cursor-pointer"
                     >
                       <Star className={`w-6 h-6 ${star <= overallRating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
                     </button>
@@ -324,7 +385,6 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
                 </div>
               </div>
 
-              {/* Star Rating 2: Usability */}
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
                 <label className="font-bold text-slate-800 block">2. ¿Cómo evalúas la velocidad de carga y diseño visual de la web?</label>
                 <div className="flex gap-2">
@@ -333,7 +393,7 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
                       type="button"
                       key={star}
                       onClick={() => setUsabilityRating(star)}
-                      className="p-1.5 text-amber-400 hover:scale-110 transition"
+                      className="p-1.5 text-amber-400 hover:scale-110 transition cursor-pointer"
                     >
                       <Star className={`w-6 h-6 ${star <= usabilityRating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
                     </button>
@@ -341,7 +401,6 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
                 </div>
               </div>
 
-              {/* Star Rating 3: Attention */}
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
                 <label className="font-bold text-slate-800 block">3. ¿Cómo evalúas la rapidez de atención y soporte del equipo?</label>
                 <div className="flex gap-2">
@@ -350,7 +409,7 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
                       type="button"
                       key={star}
                       onClick={() => setAttentionRating(star)}
-                      className="p-1.5 text-amber-400 hover:scale-110 transition"
+                      className="p-1.5 text-amber-400 hover:scale-110 transition cursor-pointer"
                     >
                       <Star className={`w-6 h-6 ${star <= attentionRating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
                     </button>
@@ -358,7 +417,6 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
                 </div>
               </div>
 
-              {/* NPS Score Slider */}
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
                 <div className="flex justify-between items-center">
                   <label className="font-bold text-slate-800">
@@ -382,7 +440,6 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
                 </div>
               </div>
 
-              {/* Free Text Comment */}
               <div>
                 <label className="text-slate-700 font-bold block mb-1">Comentarios o Testimonio (Opcional)</label>
                 <textarea
@@ -396,10 +453,11 @@ export const CsatModule: React.FC<CsatModuleProps> = ({ surveys, setSurveys }) =
 
               <button
                 type="submit"
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl shadow-md transition text-xs flex items-center justify-center gap-2"
+                disabled={isSending}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl shadow-md transition text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 <Send className="w-4 h-4" />
-                <span>Enviar Encuesta de Satisfacción</span>
+                <span>{isSending ? 'Guardando en Google Sheets...' : 'Enviar Encuesta de Satisfacción'}</span>
               </button>
 
             </form>
