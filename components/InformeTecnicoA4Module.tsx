@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Sparkles, 
   Printer, 
@@ -12,9 +12,16 @@ import {
   ImageIcon, 
   Globe, 
   Check, 
-  Trash2 
+  Trash2,
+  Save,
+  ExternalLink,
+  Folder,
+  Plus,
+  RefreshCw
 } from 'lucide-react';
 import { formatDateCL } from '@/lib/formatters';
+
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyAYhe9xRCAh1cEjlWq7fioCmOJfcJqwGrOkZFSTGczZlVBr0vr4eqrUeMGQ2yjq899/exec';
 
 interface HitoItem {
   titulo: string;
@@ -22,11 +29,13 @@ interface HitoItem {
 }
 
 interface TechnicalReportData {
+  id?: string;
   clientName: string;
   companyName: string;
   projectName: string;
   deliveryDate: string;
   webUrl: string;
+  driveLink?: string;
   rawNotes: string;
   resumenProyecto: string;
   hitosPagina2: HitoItem[];
@@ -39,11 +48,13 @@ interface TechnicalReportData {
 }
 
 const DEFAULT_REPORT_DATA: TechnicalReportData = {
+  id: 'inf-pali-rucci',
   clientName: 'Paula Rucci',
   companyName: 'Prucci Abogada — Abogada de Familia e Infancia',
   projectName: 'Despliegue Web de Alta Velocidad, Sistema de Agendamiento, Correo Corporativo y Formulario',
   deliveryDate: new Date().toISOString().split('T')[0],
   webUrl: 'https://abogadadefamilias.cl',
+  driveLink: '',
   rawNotes: 'Despliegue en Cloudflare Pages con React+Vite, gestión DNS en Cloudflare, correo corporativo prucci@abogadadefamilias.cl enrutado a Gmail con SMTP "Enviar como", agendamiento Cal.com con Zoom Workplace Pro integrado y formulario de contacto en vivo.',
   resumenProyecto: 'Se ha completado con éxito el desarrollo, despliegue e integración de la plataforma web corporativa para Prucci Abogada bajo arquitectura Serverless de alta velocidad, garantizando costo mensual de $0 en servidores, agendamiento automatizado de citas y correo profesional unificado.',
   hitosPagina2: [
@@ -100,7 +111,54 @@ export const InformeTecnicoA4Module: React.FC = () => {
   const [reportData, setReportData] = useState<TechnicalReportData>(DEFAULT_REPORT_DATA);
   const [userApiKey, setUserApiKey] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [screenshots, setScreenshots] = useState<string[]>([]);
+  const [savedInformes, setSavedInformes] = useState<TechnicalReportData[]>([]);
+  const [isLoadingSaved, setIsLoadingSaved] = useState(false);
+
+  // Cargar Historial de Informes desde Google Sheets
+  const fetchInformesFromSheets = useCallback(async () => {
+    setIsLoadingSaved(true);
+    try {
+      const res = await fetch(`${APPS_SCRIPT_URL}?type=informes&t=${Date.now()}`, { cache: 'no-store' });
+      const data = await res.json();
+
+      if (Array.isArray(data) && data.length > 0) {
+        const mappedList: TechnicalReportData[] = data.map((item: any) => {
+          let parsedData = {};
+          try {
+            parsedData = typeof item.reportJson === 'string' ? JSON.parse(item.reportJson) : (item.reportJson || {});
+          } catch (e) {
+            parsedData = {};
+          }
+
+          return {
+            ...DEFAULT_REPORT_DATA,
+            ...parsedData,
+            id: item.id || `inf_${Math.random()}`,
+            deliveryDate: item.deliveryDate || new Date().toISOString().split('T')[0],
+            clientName: item.clientName || 'Cliente',
+            companyName: item.companyName || 'Empresa',
+            webUrl: item.webUrl || '',
+            projectName: item.projectName || 'Desarrollo Web',
+            driveLink: item.driveLink || '',
+            resumenProyecto: item.resumenProyecto || DEFAULT_REPORT_DATA.resumenProyecto
+          };
+        });
+
+        setSavedInformes(mappedList);
+      }
+    } catch (err) {
+      console.error('Error al cargar informes guardados:', err);
+    } finally {
+      setIsLoadingSaved(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchInformesFromSheets();
+  }, [fetchInformesFromSheets]);
 
   const handleMultipleImagesUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -164,6 +222,57 @@ export const InformeTecnicoA4Module: React.FC = () => {
     }
   };
 
+  // Guardar Informe en Google Sheets (Historial_Informes)
+  const handleSaveInformeToSheets = async () => {
+    setIsSaving(true);
+    setSaveSuccess(false);
+
+    const reportId = reportData.id || `inf_${reportData.companyName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'save_informe',
+          id: reportId,
+          deliveryDate: reportData.deliveryDate,
+          clientName: reportData.clientName,
+          companyName: reportData.companyName,
+          webUrl: reportData.webUrl,
+          projectName: reportData.projectName,
+          driveLink: reportData.driveLink || '',
+          resumenProyecto: reportData.resumenProyecto,
+          reportData
+        }),
+      });
+
+      setSaveSuccess(true);
+      fetchInformesFromSheets();
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error('Error al guardar informe en Google Sheets:', err);
+      alert('No se pudo guardar el informe en Google Sheets.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCreateNewInforme = () => {
+    const newId = `inf_${Date.now()}`;
+    setReportData({
+      ...DEFAULT_REPORT_DATA,
+      id: newId,
+      clientName: 'Nombre Cliente',
+      companyName: 'Nueva Empresa SpA',
+      webUrl: 'https://nuevaempresa.cl',
+      projectName: 'Despliegue Web de Alta Velocidad, Correo Corporativo y Formulario',
+      deliveryDate: new Date().toISOString().split('T')[0],
+      driveLink: '',
+    });
+    setScreenshots([]);
+  };
+
   // Paginación dinámica real
   const totalAnnexPages = Math.min(Math.ceil(screenshots.length / IMAGES_PER_PAGE), MAX_ANNEX_PAGES);
   const totalPages = 6 + totalAnnexPages;
@@ -171,9 +280,76 @@ export const InformeTecnicoA4Module: React.FC = () => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 font-sans">
       
-      {/* PANEL IZQUIERDO: CONTROLES E IA (no-print) */}
+      {/* PANEL IZQUIERDO: CONTROLES, REGISTRO Y DRIVE (no-print) */}
       <div className="no-print lg:col-span-4 space-y-5 text-xs">
         
+        {/* INFORMES GUARDADOS EN GOOGLE SHEETS */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <h3 className="font-extrabold text-slate-800 flex items-center gap-1.5 uppercase text-[11px] tracking-wider">
+              <Folder className="w-4 h-4 text-emerald-600" />
+              <span>Informes Guardados ({savedInformes.length})</span>
+            </h3>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={fetchInformesFromSheets}
+                disabled={isLoadingSaved}
+                className="p-1 text-slate-400 hover:text-slate-700 rounded cursor-pointer"
+                title="Actualizar lista de informes"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingSaved ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={handleCreateNewInforme}
+                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2 py-1 rounded-lg border border-emerald-200 flex items-center gap-1 text-[10px] cursor-pointer"
+              >
+                <Plus className="w-3 h-3 text-emerald-600" /> Nuevo
+              </button>
+            </div>
+          </div>
+
+          {savedInformes.length === 0 ? (
+            <div className="p-3 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-slate-400 text-xs">
+              Sin informes respaldados en Google Sheets.
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+              {savedInformes.map((inf) => (
+                <div
+                  key={inf.id}
+                  onClick={() => setReportData(inf)}
+                  className={`p-2.5 rounded-xl border text-xs cursor-pointer flex items-center justify-between transition ${
+                    reportData.id === inf.id
+                      ? 'border-emerald-500 bg-emerald-50/60 font-bold'
+                      : 'border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="truncate max-w-[190px]">
+                    <span className="font-extrabold text-slate-900 block truncate">{inf.companyName}</span>
+                    <span className="text-slate-500 text-[10px] block font-mono truncate">{inf.webUrl}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {inf.driveLink && (
+                      <a
+                        href={inf.driveLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-1 bg-emerald-100 text-emerald-800 hover:bg-emerald-200 rounded border border-emerald-300"
+                        title="Ver PDF en Google Drive"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                    <span className="text-[10px] font-mono text-slate-400">{formatDateCL(inf.deliveryDate)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* EDITOR FORMULARIO IA */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
@@ -184,6 +360,13 @@ export const InformeTecnicoA4Module: React.FC = () => {
               PáginasPro.cl
             </span>
           </div>
+
+          {saveSuccess && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold rounded-xl flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>¡Informe e historial guardados en Google Sheets!</span>
+            </div>
+          )}
 
           <div className="space-y-3">
             <div>
@@ -214,6 +397,20 @@ export const InformeTecnicoA4Module: React.FC = () => {
                 onChange={e => setReportData({ ...reportData, webUrl: e.target.value })}
                 placeholder="https://abogadadefamilias.cl"
                 className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-mono text-xs focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            {/* LINK DE GOOGLE DRIVE DEL INFORME PDF */}
+            <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-200 space-y-1">
+              <label className="text-emerald-950 font-bold flex items-center gap-1.5 text-xs">
+                <Folder className="w-3.5 h-3.5 text-emerald-600" /> Link PDF en Google Drive (Resguardo)
+              </label>
+              <input
+                type="url"
+                value={reportData.driveLink || ''}
+                onChange={e => setReportData({ ...reportData, driveLink: e.target.value })}
+                placeholder="https://drive.google.com/file/d/..."
+                className="w-full p-2 bg-white border border-emerald-300 rounded-lg font-mono text-[11px] text-slate-900 focus:outline-none focus:border-emerald-600"
               />
             </div>
 
@@ -258,7 +455,6 @@ export const InformeTecnicoA4Module: React.FC = () => {
                 />
               </label>
 
-              {/* LISTA PREVIA DE CAPTURAS SUBIDAS */}
               {screenshots.length > 0 && (
                 <div className="grid grid-cols-4 gap-1.5 pt-2">
                   {screenshots.map((img, idx) => (
@@ -307,6 +503,15 @@ export const InformeTecnicoA4Module: React.FC = () => {
           >
             <Sparkles className="w-4 h-4 text-emerald-300" />
             <span>{isGenerating ? 'Gemini redactando informe...' : 'Auto-Redactar con Gemini IA'}</span>
+          </button>
+
+          <button
+            onClick={handleSaveInformeToSheets}
+            disabled={isSaving}
+            className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold py-3 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition disabled:opacity-50 cursor-pointer"
+          >
+            <Save className="w-4 h-4 text-emerald-200" />
+            <span>{isSaving ? 'Guardando...' : 'Guardar Informe en CRM / Sheets'}</span>
           </button>
 
           <button
@@ -589,7 +794,7 @@ export const InformeTecnicoA4Module: React.FC = () => {
           </div>
         </div>
 
-        {/* PÁGINAS DE ANEXOS DE IMÁGENES CON FONDO DIFUMINADO Y AJUSTE AUTOMÁTICO (DINÁMICAS 1-3 PÁGS) */}
+        {/* PÁGINAS DE ANEXOS DE IMÁGENES */}
         {Array.from({ length: totalAnnexPages }).map((_, pageIdx) => {
           const pageImages = screenshots.slice(pageIdx * IMAGES_PER_PAGE, (pageIdx + 1) * IMAGES_PER_PAGE);
           const currentPageNum = 7 + pageIdx;
@@ -617,7 +822,6 @@ export const InformeTecnicoA4Module: React.FC = () => {
                   Muestras de la interfaz responsiva y secciones publicadas en producción.
                 </p>
 
-                {/* CUADRÍCULA DE 4 CAPTURAS CON FONDO DIFUMINADO Y AJUSTE AUTOMÁTICO */}
                 <div className="grid grid-cols-2 gap-4">
                   {pageImages.map((imgSrc, imgIdx) => (
                     <div key={imgIdx} className="border border-slate-300 rounded-2xl overflow-hidden shadow-md bg-slate-950 flex flex-col">
@@ -632,15 +836,12 @@ export const InformeTecnicoA4Module: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* CONTENEDOR CON FONDO DIFUMINADO Y AJUSTE COMPLETO SIN RECORTES */}
                       <div className="relative bg-slate-900 h-[320px] overflow-hidden flex items-center justify-center p-2">
-                        {/* IMAGEN DE FONDO DIFUMINADA */}
                         <img
                           src={imgSrc}
                           alt="Fondo difuminado"
                           className="absolute inset-0 w-full h-full object-cover blur-md opacity-40 scale-110 pointer-events-none"
                         />
-                        {/* IMAGEN PRINCIPAL COMPLETA (CONTAIN) */}
                         <img
                           src={imgSrc}
                           alt={`Captura ${pageIdx * IMAGES_PER_PAGE + imgIdx + 1}`}
