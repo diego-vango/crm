@@ -20,7 +20,8 @@ import {
   Save,
   CheckCircle2,
   GripVertical,
-  Briefcase
+  Briefcase,
+  Check
 } from 'lucide-react';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyAYhe9xRCAh1cEjlWq7fioCmOJfcJqwGrOkZFSTGczZlVBr0vr4eqrUeMGQ2yjq899/exec';
@@ -57,10 +58,12 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
   const [lastSyncTime, setLastSyncTime] = useState<string>('');
   const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  const [copiedEmailId, setCopiedEmailId] = useState<string | null>(null);
 
-  // Editable Form State
+  // Formulario Editable Lateral
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
   const [editService, setEditService] = useState('');
   const [editValue, setEditValue] = useState<number>(0);
   const [editNotes, setEditNotes] = useState('');
@@ -73,6 +76,15 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
   const cleanPhone = (phoneRaw: string) => {
     if (!phoneRaw || String(phoneRaw).includes('#REF!')) return '';
     return String(phoneRaw).replace(/^p:/i, '').trim();
+  };
+
+  const cleanPhoneForWa = (phoneRaw: string) => {
+    if (!phoneRaw) return '';
+    let cleaned = String(phoneRaw).replace(/[^0-9]/g, '');
+    if (cleaned.length === 9 && cleaned.startsWith('9')) {
+      cleaned = '56' + cleaned;
+    }
+    return cleaned;
   };
 
   const parseAmountNumber = (amountRaw: any): number => {
@@ -106,6 +118,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
     if (selectedLead) {
       setEditName(selectedLead.name);
       setEditPhone(selectedLead.phone);
+      setEditEmail(selectedLead.email || '');
       setEditService(selectedLead.serviceInterest);
       setEditValue(selectedLead.value);
       setEditNotes(selectedLead.notes || '');
@@ -113,7 +126,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
     }
   }, [selectedLead]);
 
-  // Fetch Leads from Sheets (Con Bypasseo Anti-Caché)
+  // Carga de Leads desde Sheets
   const fetchLeadsFromSheets = useCallback(async () => {
     setIsSyncing(true);
     try {
@@ -121,6 +134,8 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
       const data = await res.json();
 
       if (Array.isArray(data) && data.length > 0) {
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+
         const mappedLeads: Lead[] = data.map((item: any) => {
           const rawDate = item['Fecha'] ? String(item['Fecha']).split('T')[0] : new Date().toISOString().split('T')[0];
           const proposedAmount = parseAmountNumber(item['Monto Propuesto']);
@@ -129,12 +144,15 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
 
           const clientName = cleanText(item['Cliente'], 'Cliente sin nombre');
           const rawService = cleanText(item['Plan Solicitado'], 'Desarrollo Web Pro');
+          const notesText = cleanText(item['Notas'], '');
+          const rawEmail = item['email'] || item['Email'] || '';
+          const foundEmail = rawEmail || (notesText.match(emailRegex)?.[0]) || '';
 
           return {
             id: String(item['ID Lead'] || `lead_${Math.random()}`),
             name: clientName,
             company: clientName,
-            email: '',
+            email: foundEmail,
             phone: cleanPhone(item['Teléfono']),
             serviceInterest: rawService.replace(/_/g, ' '),
             value: val,
@@ -142,7 +160,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
             origin: 'meta_ads',
             createdAt: rawDate,
             lastActivity: item['Próxima Acción'] ? `Próxima acción: ${cleanText(item['Próxima Acción'])}` : `Registrado el ${rawDate}`,
-            notes: cleanText(item['Notas'], '')
+            notes: notesText
           };
         });
 
@@ -160,7 +178,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
     fetchLeadsFromSheets();
   }, [fetchLeadsFromSheets]);
 
-  // Move Lead Stage
+  // Cambiar etapa del lead
   const moveLeadStage = async (leadId: string, newStage: LeadStage) => {
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage, lastActivity: `Estado cambiado a ${newStage.toUpperCase()} hoy` } : l));
 
@@ -179,7 +197,42 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
     }
   };
 
-  // Drag and Drop Handlers
+  // Handlers para Acciones Directas (WhatsApp y Email)
+  const handleWhatsAppClick = (lead: Lead) => {
+    const waPhone = cleanPhoneForWa(lead.phone);
+    if (!waPhone) {
+      alert('Este contacto no posee un número de teléfono válido.');
+      return;
+    }
+    const firstName = lead.name && lead.name !== 'Cliente sin nombre' ? lead.name.split(' ')[0] : '';
+    const greeting = firstName ? `Hola ${firstName}` : 'Hola';
+    const message = `${greeting}, aquí Diego de PáginasPro. Espero vaya todo bien. Recibí tus datos y me gustaría saber más de lo que necesitas para obtener tu página web.`;
+    
+    const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
+    window.open(waUrl, '_blank');
+  };
+
+  const handleEmailClick = (lead: Lead) => {
+    if (!lead.email) {
+      alert('No hay un correo registrado para este contacto.');
+      return;
+    }
+
+    const firstName = lead.name && lead.name !== 'Cliente sin nombre' ? lead.name.split(' ')[0] : '';
+    const greeting = firstName ? `Hola ${firstName}` : 'Hola';
+    const subject = 'PáginasPro.cl — Tu página web profesional';
+    const body = `${greeting},\n\nEspero te encuentres muy bien. Recibí tus datos a través de nuestro sitio web y me gustaría conversar brevemente para conocer más detalles de lo que necesitas para tu página web.\n\nQuedo muy atento a tus comentarios.\n\nSaludos cordiales,\nDiego Valderrama H.\nPáginasPro.cl`;
+
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    navigator.clipboard.writeText(lead.email);
+    setCopiedEmailId(lead.id);
+    setTimeout(() => setCopiedEmailId(null), 2500);
+
+    window.open(gmailUrl, '_blank');
+  };
+
+  // Handlers Drag & Drop
   const handleDragStart = (e: React.DragEvent, leadId: string) => {
     e.dataTransfer.setData('text/plain', leadId);
     setDraggingLeadId(leadId);
@@ -207,7 +260,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
     setDragOverStage(null);
   };
 
-  // Save Details
+  // Guardar Detalles
   const handleSaveLeadDetails = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead) return;
@@ -220,6 +273,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
       name: editName.trim(),
       company: editName.trim(),
       phone: editPhone.trim(),
+      email: editEmail.trim(),
       serviceInterest: editService.trim(),
       value: Number(editValue) || 0,
       notes: editNotes.trim()
@@ -257,7 +311,8 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
       lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lead.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lead.serviceInterest.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.phone.includes(searchTerm);
+      lead.phone.includes(searchTerm) ||
+      lead.email.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesOrigin = originFilter === 'all' || lead.origin === originFilter;
     return matchesSearch && matchesOrigin;
@@ -346,7 +401,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
 
       </div>
 
-      {/* Control Bar: Main Toolbar */}
+      {/* Toolbar Principal */}
       <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-3">
         
         <div className="flex items-center gap-3">
@@ -422,7 +477,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
 
       </div>
 
-      {/* KANBAN BOARD VIEW WITH DRAG & DROP */}
+      {/* TABLERO KANBAN CON BOTONES DE ACCIÓN DIRECTA */}
       {viewMode === 'kanban' ? (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 overflow-x-auto pb-4">
           {STAGES.map((stage) => {
@@ -440,7 +495,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
                   isTargetDropStage ? 'border-emerald-500 ring-2 ring-emerald-400/40 bg-emerald-50/20' : 'border-slate-200/80'
                 }`}
               >
-                {/* Column Header */}
+                {/* Cabecera de Columna */}
                 <div className={`p-2.5 rounded-lg border ${stage.border} ${stage.bg} mb-3 flex items-center justify-between`}>
                   <div>
                     <h4 className={`text-xs font-bold ${stage.color}`}>{stage.label}</h4>
@@ -453,7 +508,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
                   </span>
                 </div>
 
-                {/* Lead Cards List */}
+                {/* Lista de Tarjetas */}
                 <div className="space-y-3 flex-1 overflow-y-auto pr-1">
                   {stageLeads.length === 0 ? (
                     <div className="h-32 border-2 border-dashed border-slate-200 rounded-lg flex items-center justify-center text-[11px] text-slate-400 text-center px-4">
@@ -481,10 +536,10 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
                           </span>
                         </div>
 
-                        <h5 className="font-bold text-slate-900 text-sm group-hover:text-emerald-600 transition">
+                        <h5 className="font-bold text-slate-900 text-sm group-hover:text-emerald-600 transition leading-snug">
                           {lead.name}
                         </h5>
-                        <p className="text-xs text-slate-600 font-medium mb-2">
+                        <p className="text-xs text-slate-600 font-medium mb-2 font-mono">
                           {lead.phone || 'Sin teléfono'}
                         </p>
 
@@ -493,40 +548,66 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
                         </div>
 
                         <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-100">
-                          <span className="text-slate-500 truncate max-w-[150px]">
+                          <span className="text-slate-500 truncate max-w-[140px]">
                             {lead.lastActivity}
                           </span>
                           <span className="font-mono">{lead.createdAt}</span>
                         </div>
 
-                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-                          <select
-                            value={lead.stage}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              moveLeadStage(lead.id, e.target.value as LeadStage);
-                            }}
-                            className="text-[10px] font-semibold bg-slate-100 border border-slate-200 rounded px-1.5 py-1 text-slate-700 focus:outline-none"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <option value="nuevo">1. Nuevo Lead</option>
-                            <option value="conversacion">2. En Conversación</option>
-                            <option value="cotizado">3. Cotizado</option>
-                            <option value="cerrado">4. Cerrado / Ganado</option>
-                            <option value="perdido">5. Perdió Interés</option>
-                          </select>
-
+                        {/* BOTONES DE ACCIÓN RÁPIDA: WHATSAPP | CORREO | COTIZAR */}
+                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-1.5">
+                          
+                          {/* BOTÓN WHATSAPP */}
                           <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleWhatsAppClick(lead);
+                            }}
+                            className="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-[10px] py-1.5 px-2 rounded-lg border border-emerald-200 flex items-center justify-center gap-1 transition cursor-pointer"
+                            title="Abrir chat en WhatsApp"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>WhatsApp</span>
+                          </button>
+
+                          {/* BOTÓN CORREO */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEmailClick(lead);
+                            }}
+                            className="flex-1 bg-sky-50 hover:bg-sky-100 text-sky-800 font-extrabold text-[10px] py-1.5 px-2 rounded-lg border border-sky-200 flex items-center justify-center gap-1 transition cursor-pointer"
+                            title={lead.email ? `Redactar a ${lead.email}` : "Enviar correo"}
+                          >
+                            {copiedEmailId === lead.id ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                <span>¡Copiado!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Mail className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                                <span>Correo</span>
+                              </>
+                            )}
+                          </button>
+
+                          {/* BOTÓN COTIZAR */}
+                          <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               onConvertLeadToQuote(lead);
                             }}
-                            className="text-[10px] bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold px-2 py-1 rounded border border-emerald-200 flex items-center gap-1 cursor-pointer"
+                            className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-[10px] py-1.5 px-2 rounded-lg border border-slate-200 flex items-center justify-center gap-1 transition cursor-pointer"
                             title="Generar Presupuesto PDF"
                           >
-                            <FileText className="w-3 h-3 text-emerald-600" />
+                            <FileText className="w-3.5 h-3.5 text-slate-600 shrink-0" />
                             <span>Cotizar</span>
                           </button>
+
                         </div>
 
                       </div>
@@ -539,18 +620,18 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
           })}
         </div>
       ) : (
-        /* TABLE VIEW */
+        /* VISTA TABLA */
         <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-900 text-slate-200 uppercase text-[10px] font-bold tracking-wider">
                   <th className="p-3">Cliente / Nombre</th>
-                  <th className="p-3">Origen</th>
+                  <th className="p-3">Contacto</th>
                   <th className="p-3">Plan Solicitado</th>
                   <th className="p-3">Monto Propuesto</th>
                   <th className="p-3">Estado Comercial</th>
-                  <th className="p-3 text-right">Acciones</th>
+                  <th className="p-3 text-right">Acciones Directas</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -565,16 +646,19 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
                     <tr key={lead.id} className="hover:bg-slate-50 transition">
                       <td className="p-3">
                         <div className="font-bold text-slate-900 text-sm">{lead.name}</div>
-                        <div className="text-slate-500">{lead.phone}</div>
+                        <div className="text-slate-400 text-[10px] font-mono">{lead.createdAt}</div>
                       </td>
-                      <td className="p-3">{getOriginBadge(lead.origin)}</td>
+                      <td className="p-3 font-mono">
+                        <div className="text-slate-800 font-semibold">{lead.phone || 'Sin teléfono'}</div>
+                        <div className="text-slate-500 text-[11px]">{lead.email || 'Sin correo'}</div>
+                      </td>
                       <td className="p-3 font-medium text-slate-700 max-w-xs">{lead.serviceInterest}</td>
                       <td className="p-3 font-bold font-mono text-slate-900">{formatCLP(lead.value)}</td>
                       <td className="p-3">
                         <select
                           value={lead.stage}
                           onChange={(e) => moveLeadStage(lead.id, e.target.value as LeadStage)}
-                          className="text-xs font-semibold bg-slate-100 border border-slate-300 rounded-md px-2 py-1 text-slate-800"
+                          className="text-xs font-semibold bg-slate-100 border border-slate-300 rounded-md px-2 py-1 text-slate-800 cursor-pointer"
                         >
                           <option value="nuevo">Lead</option>
                           <option value="conversacion">Contactado</option>
@@ -583,14 +667,32 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
                           <option value="perdido">Perdió Interés</option>
                         </select>
                       </td>
-                      <td className="p-3 text-right space-x-2">
-                        <button
-                          onClick={() => onConvertLeadToQuote(lead)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-2.5 py-1 rounded-md inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <FileText className="w-3.5 h-3.5" />
-                          <span>Crear PPTO</span>
-                        </button>
+                      <td className="p-3 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleWhatsAppClick(lead)}
+                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-[10px] px-2.5 py-1 rounded-md border border-emerald-200 flex items-center gap-1 cursor-pointer"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>WhatsApp</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleEmailClick(lead)}
+                            className="bg-sky-50 hover:bg-sky-100 text-sky-800 font-extrabold text-[10px] px-2.5 py-1 rounded-md border border-sky-200 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Mail className="w-3.5 h-3.5 text-sky-600" />
+                            <span>Correo</span>
+                          </button>
+
+                          <button
+                            onClick={() => onConvertLeadToQuote(lead)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs px-2.5 py-1 rounded-md inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>Cotizar</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -601,7 +703,7 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
         </div>
       )}
 
-      {/* EDITABLE LEAD DETAIL SIDEBAR */}
+      {/* PANEL LATERAL EDITABLE */}
       {selectedLead && (
         <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-xs z-50 flex justify-end transition-opacity">
           <div className="bg-white w-full max-w-md h-full shadow-2xl p-6 overflow-y-auto flex flex-col justify-between border-l border-slate-200">
@@ -628,7 +730,6 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
                 </div>
               )}
 
-              {/* Botón de Agregar Nuevo Trato para este Cliente */}
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between">
                 <div>
                   <p className="font-bold text-slate-800 text-xs">¿Nuevo Servicio o Proyecto?</p>
@@ -665,6 +766,17 @@ export const PipelineModule: React.FC<PipelineModuleProps> = ({
                     type="text"
                     value={editPhone}
                     onChange={(e) => setEditPhone(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-mono font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-500 font-bold block mb-1">Correo Electrónico</label>
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    placeholder="contacto@cliente.cl"
                     className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 font-mono font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
