@@ -164,7 +164,7 @@ export const InformeTecnicoA4Module: React.FC = () => {
     }
   };
 
-  // Cálculo de paginación
+  // Paginación dinámica real
   const totalAnnexPages = Math.min(Math.ceil(screenshots.length / IMAGES_PER_PAGE), MAX_ANNEX_PAGES);
   const totalPages = 6 + totalAnnexPages;
 
@@ -248,7 +248,7 @@ export const InformeTecnicoA4Module: React.FC = () => {
                 <span className="text-[11px] font-semibold text-slate-700">
                   Subir Capturas del Sitio (Selección múltiple)
                 </span>
-                <span className="text-[9px] text-slate-400">Se organizan automáticamente 4 por página</span>
+                <span className="text-[9px] text-slate-400">Acomoda 4 por página de anexo</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -536,7 +536,7 @@ export const InformeTecnicoA4Module: React.FC = () => {
           </div>
         </div>
 
-        {/* PÁGINA 6: GARANTÍA Y COBERTURA (NOMBRE CORREGIDO) */}
+        {/* PÁGINA 6: GARANTÍA Y COBERTURA */}
         <div className="a4-page bg-white text-slate-900 border border-slate-200 shadow-2xl p-12 w-full max-w-[800px] min-h-[1050px] relative flex flex-col justify-between print:border-none print:shadow-none print:break-after-page">
           <div>
             <div className="flex justify-between items-center pb-4 border-b border-slate-200 mb-8">
@@ -589,7 +589,7 @@ export const InformeTecnicoA4Module: React.FC = () => {
           </div>
         </div>
 
-        {/* PÁGINAS DE ANEXOS DE IMÁGENES (PÁGINAS DINÁMICAS: 3-4 CAPTURAS POR PÁGINA) */}
+        {/* PÁGINAS DE ANEXOS DE IMÁGENES CON FONDO DIFUMINADO Y AJUSTE AUTOMÁTICO (DINÁMICAS 1-3 PÁGS) */}
         {Array.from({ length: totalAnnexPages }).map((_, pageIdx) => {
           const pageImages = screenshots.slice(pageIdx * IMAGES_PER_PAGE, (pageIdx + 1) * IMAGES_PER_PAGE);
           const currentPageNum = 7 + pageIdx;
@@ -617,11 +617,11 @@ export const InformeTecnicoA4Module: React.FC = () => {
                   Muestras de la interfaz responsiva y secciones publicadas en producción.
                 </p>
 
-                {/* CUADRÍCULA DE 4 CAPTURAS POR PÁGINA */}
+                {/* CUADRÍCULA DE 4 CAPTURAS CON FONDO DIFUMINADO Y AJUSTE AUTOMÁTICO */}
                 <div className="grid grid-cols-2 gap-4">
                   {pageImages.map((imgSrc, imgIdx) => (
-                    <div key={imgIdx} className="border border-slate-300 rounded-xl overflow-hidden shadow-md bg-slate-900 flex flex-col">
-                      <div className="bg-slate-800 px-3 py-1.5 flex items-center justify-between border-b border-slate-700">
+                    <div key={imgIdx} className="border border-slate-300 rounded-2xl overflow-hidden shadow-md bg-slate-950 flex flex-col">
+                      <div className="bg-slate-800 px-3 py-1.5 flex items-center justify-between border-b border-slate-700 z-10">
                         <div className="flex items-center gap-1">
                           <span className="w-2 h-2 rounded-full bg-rose-500"></span>
                           <span className="w-2 h-2 rounded-full bg-amber-500"></span>
@@ -632,11 +632,19 @@ export const InformeTecnicoA4Module: React.FC = () => {
                         </span>
                       </div>
 
-                      <div className="bg-slate-100 p-1 flex justify-center h-[320px] overflow-hidden">
+                      {/* CONTENEDOR CON FONDO DIFUMINADO Y AJUSTE COMPLETO SIN RECORTES */}
+                      <div className="relative bg-slate-900 h-[320px] overflow-hidden flex items-center justify-center p-2">
+                        {/* IMAGEN DE FONDO DIFUMINADA */}
+                        <img
+                          src={imgSrc}
+                          alt="Fondo difuminado"
+                          className="absolute inset-0 w-full h-full object-cover blur-md opacity-40 scale-110 pointer-events-none"
+                        />
+                        {/* IMAGEN PRINCIPAL COMPLETA (CONTAIN) */}
                         <img
                           src={imgSrc}
                           alt={`Captura ${pageIdx * IMAGES_PER_PAGE + imgIdx + 1}`}
-                          className="w-full h-full object-cover object-top rounded-md border border-slate-200"
+                          className="relative z-10 max-w-full max-h-full object-contain rounded-md shadow-lg border border-white/10"
                         />
                       </div>
                     </div>
