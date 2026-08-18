@@ -21,7 +21,6 @@ import {
   INITIAL_INFORMES, 
   INITIAL_SURVEYS 
 } from '@/lib/mockData';
-import { calculateWarrantyDates } from '@/lib/formatters';
 import { Lock, ShieldCheck, KeyRound, LogOut, ArrowRight } from 'lucide-react';
 
 const CRM_ACCESS_PIN = '10224994';
@@ -36,12 +35,6 @@ let pageItemCounter = 0;
 function createPageItemId(): string {
   pageItemCounter += 1;
   return `item-${pageItemCounter}-${Date.now().toString(36)}`;
-}
-
-let pageInfCounter = 0;
-function createPageInfId(): string {
-  pageInfCounter += 1;
-  return `inf-${pageInfCounter}-${Date.now().toString(36)}`;
 }
 
 const parseCLPAmount = (val: any): number => {
@@ -64,7 +57,7 @@ export default function CrmDashboardPage() {
   const [isNewLeadModalOpen, setIsNewLeadModalOpen] = useState(false);
   const [prefillLeadData, setPrefillLeadData] = useState<{ name?: string; phone?: string } | undefined>(undefined);
 
-  // Check saved authentication on mount
+  // Verificación de Autenticación
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedAuth = localStorage.getItem('paginaspro_crm_auth');
@@ -98,7 +91,7 @@ export default function CrmDashboardPage() {
     setPinInput('');
   };
 
-  // State initialized with real historical data
+  // Estados
   const [leads, setLeads] = useState<Lead[]>(INITIAL_LEADS);
   const [presupuestos, setPresupuestos] = useState<Presupuesto[]>(INITIAL_PRESUPUESTOS);
   const [activePresupuesto, setActivePresupuesto] = useState<Presupuesto>(
@@ -131,7 +124,6 @@ export default function CrmDashboardPage() {
   );
 
   const [informes, setInformes] = useState<InformeEntrega[]>(INITIAL_INFORMES);
-  const [activeInforme, setActiveInforme] = useState<InformeEntrega>(INITIAL_INFORMES[0] || {} as any);
   const [surveys, setSurveys] = useState<SurveyResponse[]>(INITIAL_SURVEYS);
 
   // Sincronización continua en segundo plano con Google Sheets
@@ -199,7 +191,7 @@ export default function CrmDashboardPage() {
     loadPresupuestosFromSheet();
   }, [isAuthenticated]);
 
-  // Convert Lead into Budget Quote
+  // Convertir Lead a Presupuesto
   const handleConvertLeadToQuote = (lead: Lead) => {
     let nextCorrelativo = 228;
     if (presupuestos.length > 0) {
@@ -386,6 +378,10 @@ export default function CrmDashboardPage() {
           presupuestosCount={presupuestos.length}
           informesCount={informes.length}
           csatAvg={csatAvg}
+          leads={leads}
+          presupuestos={presupuestos}
+          surveys={surveys}
+          onSelectPresupuesto={(ppto) => setActivePresupuesto(ppto)}
         />
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
